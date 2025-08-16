@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment | UN533N Clothing</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+    .payment-section {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+            linear-gradient(120deg, rgba(154,129,116,0.7) 0%, rgba(5,2,6,0.7) 100%),
+            url('imgs/IMG_4417.JPG') center/cover no-repeat;
+    }
+    .payment-form-container {
+        background: rgba(255,255,255,0.97);
+        padding: 2.5rem 2rem;
+        border-radius: 18px;
+        box-shadow: 0 4px 24px rgba(59,59,59,0.12);
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+    }
+    .payment-form-container h2 {
+        margin-bottom: 1.5rem;
+        color: var(--primary);
+    }
+    .payment-form input, .payment-form select {
+        width: 100%;
+        padding: 0.8rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--cta);
+        border-radius: 8px;
+        font-size: 1rem;
+    }
+    .payment-form button {
+        width: 100%;
+        background: var(--cta);
+        color: var(--white);
+        border: none;
+        border-radius: 20px;
+        padding: 0.8rem;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+    }
+    .payment-form button:hover {
+        background: var(--primary);
+        color: var(--cta);
+    }
+    .payment-success {
+        color: #2e7d32;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+        display: none;
+    }
+    .payment-error { color: #d32f2f; margin-bottom: 1rem; font-size: 1.1rem; display: none; }
+    </style>
+</head>
+<body>
+    <section class="payment-section">
+        <div class="payment-form-container">
+            <h2>Payment Details</h2>
+            <form class="payment-form" id="paymentForm" autocomplete="off">
+                <input type="text" id="name" placeholder="Cardholder Name" required>
+                <input type="text" id="card" placeholder="Card Number" maxlength="19" required>
+                <div style="display:flex; gap:1rem;">
+                    <input type="text" id="expiry" placeholder="MM/YY" maxlength="5" required style="flex:1;">
+                    <input type="text" id="cvc" placeholder="CVC" maxlength="4" required style="flex:1;">
+                </div>
+                <input type="text" id="address" placeholder="Billing Address" required>
+                <button type="submit">Pay Now</button>
+                <div class="payment-error" id="paymentError"></div>
+                <div class="payment-success" id="paymentSuccess">Payment successful! Thank you for your order.</div>
+            </form>
+        </div>
+    </section>
+    <script>
+    document.getElementById('paymentForm').addEventListener('submit', function(e) {
+       e.preventDefault();
+
+        // Basic client-side validation
+        let name = document.getElementById('name').value;
+        let card = document.getElementById('card').value;
+        let expiry = document.getElementById('expiry').value;
+        let cvc = document.getElementById('cvc').value;
+        let address = document.getElementById('address').value;
+
+        if (!name || !card || !expiry || !cvc || !address) {
+            document.getElementById('paymentError').textContent = 'Please fill in all fields.';
+            document.getElementById('paymentError').style.display = 'block';
+            return;
+        }
+
+        // Card number validation (basic length check)
+        if (card.length < 16) {
+            document.getElementById('paymentError').textContent = 'Invalid card number.';
+            document.getElementById('paymentError').style.display = 'block';
+            return;
+        }
+
+        // Expiry date validation (basic format check)
+        if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+            document.getElementById('paymentError').textContent = 'Invalid expiry date format (MM/YY).';
+            document.getElementById('paymentError').style.display = 'block';
+            return;
+        }
+
+        // CVC validation (basic length check)
+        if (cvc.length < 3 || cvc.length > 4) {
+            document.getElementById('paymentError').textContent = 'Invalid CVC.';
+            document.getElementById('paymentError').style.display = 'block';
+            return;
+        }
+
+        // If validation passes, simulate payment success
+        // In a real application, you would send this data to your server
+        // to process the payment with a payment gateway.
+
+        // For this example, just show the success message:
+        document.getElementById('paymentError').style.display = 'none'; // Hide any previous errors
+        document.getElementById('paymentSuccess').style.display = 'block'; // Show success message
+        setTimeout(function() {
+            window.location.href = "index.html"; // Redirect after 2 seconds
+        }, 2000);
+    });
+    </script>
