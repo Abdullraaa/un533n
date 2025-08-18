@@ -4,66 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shop - UN533N</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="output.css">
+    <link rel="stylesheet" href="/dist/styles.css">
 </head>
-<body class="bg-black text-white">
-    <header class="py-4 px-8">
-        <nav class="flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold">UN533N</a>
-            <ul class="flex space-x-8">
-                <li><a href="index.html" class="hover:text-gray-400">Home</a></li>
-                <li><a href="shop.html" class="hover:text-gray-400">Shop</a></li>
-                <li><a href="about.html" class="hover:text-gray-400">About</a></li>
-                <li><a href="contact.html" class="hover:text-gray-400">Contact</a></li>
-            </ul>
-            <div>
-                <a href="/cart" class="hover:text-gray-400">Cart</a>
-                <a href="/login" class="ml-4 hover:text-gray-400">Login</a>
+<body class="bg-un-black text-un-white">
+    <header class="bg-un-black shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-un-gold">UN533N</a>
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="/shop.html" class="hover:text-un-gold">Shop</a>
+                <a href="/about.html" class="hover:text-un-gold">About</a>
+                <a href="/contact.html" class="hover:text-un-gold">Contact</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="/cart.html" class="hover:text-un-gold">Cart</a>
+                <a href="/login.html" class="hover:text-un-gold">Login</a>
             </div>
         </nav>
     </header>
 
-    <main class="px-8 py-16">
-        <h1 class="text-3xl font-bold text-center">Shop</h1>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mt-8">
-            <!-- Product Card -->
-            <div class="product-card">
-                <img src="imgs/IMG_4411.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                <div class="p-4">
-                    <h3 class="font-bold">Product Name</h3>
-                    <p class="text-gray-400">$100</p>
+    <main class="container mx-auto px-6 py-16">
+        <h1 class="text-4xl font-bold text-center mb-12">Shop</h1>
+        <div class="flex">
+            <aside class="w-1/4 pr-8">
+                <h2 class="text-2xl font-bold mb-4">Categories</h2>
+                <ul>
+                    <li><a href="#" class="hover:text-un-gold">T-Shirts</a></li>
+                    <li><a href="#" class="hover:text-un-gold">Hoodies</a></li>
+                    <li><a href="#" class="hover:text-un-gold">Pants</a></li>
+                    <li><a href="#" class="hover:text-un-gold">Accessories</a></li>
+                </ul>
+            </aside>
+            <section class="w-3/4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="/imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="/product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
+                    </div>
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="/imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="/product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
+                    </div>
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="/imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="/product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <!-- Product Card -->
-            <div class="product-card">
-                <img src="imgs/IMG_4414.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                <div class="p-4">
-                    <h3 class="font-bold">Product Name</h3>
-                    <p class="text-gray-400">$100</p>
-                </div>
-            </div>
-            <!-- Product Card -->
-            <div class="product-card">
-                <img src="imgs/IMG_4415.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                <div class="p-4">
-                    <h3 class="font-bold">Product Name</h3>
-                    <p class="text-gray-400">$100</p>
-                </div>
-            </div>
-            <!-- Product Card -->
-            <div class="product-card">
-                <img src="imgs/IMG_4417.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                <div class="p-4">
-                    <h3 class="font-bold">Product Name</h3>
-                    <p class="text-gray-400">$100</p>
-                </div>
-            </div>
+            </section>
         </div>
     </main>
 
-    <footer class="bg-gray-900 text-white py-8 mt-16">
-        <div class="container mx-auto text-center">
+    <footer class="bg-un-black py-8 mt-16">
+        <div class="container mx-auto px-6 text-center">
             <p>&copy; 2025 UN533N. All rights reserved.</p>
         </div>
     </footer>

@@ -7,7 +7,7 @@
     "start": "node src/server.js",
     "build": "webpack --mode production",
     "dev": "webpack --mode development",
-    "build:css": "./node_modules/.bin/tailwindcss build src/input.css -o public/output.css"
+    "build:css": "tailwindcss build src/input.css -o public/output.css"
   },
   "keywords": [
     "clothing",
@@ -17,12 +17,26 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
+    "@stripe/react-stripe-js": "^3.9.0",
+    "@stripe/stripe-js": "^7.8.0",
+    "@tailwindcss/postcss": "^4.1.12",
     "axios": "^0.21.1",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^17.2.1",
     "express": "^4.17.1",
-    "mysql2": "^3.14.3"
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.1",
+    "stripe": "^18.4.0",
+    "zustand": "^5.0.7"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
     "autoprefixer": "^10.4.21",
     "babel-loader": "^8.2.2",
     "babel-preset-env": "^1.7.0",
