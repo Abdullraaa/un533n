@@ -1,103 +1,73 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UN533N</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="output.css">
 </head>
-<body class="bg-black text-white">
-    <header class="py-4 px-8">
-        <nav class="flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold">UN533N</a>
-            <ul class="flex space-x-8">
-                <li><a href="index.html" class="hover:text-gray-400">Home</a></li>
-                <li><a href="shop.html" class="hover:text-gray-400">Shop</a></li>
-                <li><a href="about.html" class="hover:text-gray-400">About</a></li>
-                <li><a href="contact.html" class="hover:text-gray-400">Contact</a></li>
-            </ul>
-            <div>
-                <a href="/cart" class="hover:text-gray-400">Cart</a>
-                <a href="/login" class="ml-4 hover:text-gray-400">Login</a>
+<body class="bg-un-black text-un-white">
+    <header class="bg-un-black shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-un-gold">UN533N</a>
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="shop.html" class="hover:text-un-gold">Shop</a>
+                <a href="about.html" class="hover:text-un-gold">About</a>
+                <a href="contact.html" class="hover:text-un-gold">Contact</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="cart.html" class="hover:text-un-gold">Cart</a>
+                <a href="login.html" class="hover:text-un-gold">Login</a>
             </div>
         </nav>
     </header>
 
     <main>
-        <section class="hero bg-cover bg-center h-screen" style="background-image: url('imgs/IMG_4420.JPG');">
-            <div class="flex items-center justify-center h-full bg-black bg-opacity-50">
-                <div class="text-center">
-                    <h1 class="text-5xl font-bold">Fall/Winter Collection</h1>
-                    <p class="text-xl mt-4">New arrivals are here</p>
-                    <a href="/shop" class="mt-8 inline-block bg-white text-black py-2 px-8 rounded-full font-bold">Shop Now</a>
-                </div>
-            </div>
+        <section class="bg-un-black text-center py-20">
+            <h1 class="text-5xl font-bold text-un-white">Fall/Winter Collection</h1>
+            <p class="text-xl text-un-white mt-4">New arrivals are here.</p>
+            <a href="shop.html" class="mt-8 inline-block bg-un-gold text-un-black font-bold py-3 px-8 rounded">Shop Now</a>
         </section>
 
-        <section class="new-arrivals py-16">
-            <h2 class="text-3xl font-bold text-center">New Arrivals</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8 px-8">
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4404.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$100</p>
+        <section class="py-16">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl font-bold text-center mb-8">New Arrivals</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
                     </div>
-                </div>
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4405.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$100</p>
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
                     </div>
-                </div>
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4407.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$100</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="sale bg-gray-900 py-16">
-            <h2 class="text-3xl font-bold text-center">On Sale</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8 px-8">
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4408.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$80</p>
-                    </div>
-                </div>
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4409.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$80</p>
-                    </div>
-                </div>
-                <!-- Product Card -->
-                <div class="product-card">
-                    <img src="imgs/IMG_4410.JPG" alt="Product Image" class="w-full h-96 object-cover">
-                    <div class="p-4">
-                        <h3 class="font-bold">Product Name</h3>
-                        <p class="text-gray-400">$80</p>
+                    <!-- Product Card -->
+                    <div class="bg-un-white text-un-black rounded-lg shadow-lg">
+                        <img src="imgs/csoonpng.png" alt="Product Image" class="rounded-t-lg">
+                        <div class="p-6">
+                            <h3 class="text-xl font-bold">Product Name</h3>
+                            <p class="text-gray-600 mt-2">$99.99</p>
+                            <a href="product-detail.html" class="mt-4 inline-block bg-un-gold text-un-black font-bold py-2 px-4 rounded">View Details</a>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer class="bg-gray-900 text-white py-8 mt-16">
-        <div class="container mx-auto text-center">
+    <footer class="bg-un-black py-8">
+        <div class="container mx-auto px-6 text-center">
             <p>&copy; 2025 UN533N. All rights reserved.</p>
         </div>
     </footer>
