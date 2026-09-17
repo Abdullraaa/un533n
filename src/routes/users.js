@@ -3,28 +3,6 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../database');
-
-// User Signup
-router.post('/signup', async (req, res) => {
-  try {
-    const { email, password, first_name, last_name } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      'INSERT INTO users (email, password, first_name, last_name) VALUES (?, ?, ?, ?)',
-      [email, hashedPassword, first_name, last_name]
-    );
-    res.status(201).json({ message: 'User created successfully', userId: result.insertId });
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating user', error });
-  }
-});
-
-// User Login
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const pool = require('../database');
 const auth = require('../middleware/auth');
 
 // IMPORTANT: Use a long, complex, and secret string in your environment variables.
@@ -65,7 +43,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Logged in successfully', token });
+    // The client store sets `user` from this response; without it the app
+    // lands on /profile with no user and bounces straight back to /login.
+    const { password: _password, ...safeUser } = user;
+    res.json({ message: 'Logged in successfully', token, user: safeUser });
   } catch (error) {
     res.status(500).json({ message: 'Error logging in', error: error.message });
   }
@@ -147,25 +128,6 @@ router.delete('/addresses/:id', auth.required, async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Error deleting address', error: error.message });
     }
-});
-
-module.exports = router;
-  try {
-    const { email, password } = req.body;
-    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (rows.length === 0) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-    const user = rows[0];
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-    const token = jwt.sign({ userId: user.id }, 'your_jwt_secret', { expiresIn: '1h' });
-    res.json({ message: 'Logged in successfully', token });
-  } catch (error) {
-    res.status(500).json({ message: 'Error logging in', error });
-  }
 });
 
 module.exports = router;

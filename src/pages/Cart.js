@@ -17,24 +17,27 @@ const Cart = () => {
     removeFromCart(variant_id);
   };
 
-  const subtotal = cart.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  // `price` is DECIMAL; the pool coerces it, but stay defensive so a bad
+  // payload renders as $0.00 rather than throwing mid-render.
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  const subtotal = items.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0);
 
   return (
     <div className="px-8 py-16">
       <h1 className="text-3xl font-bold text-center mb-8">Shopping Cart</h1>
       <div className="max-w-4xl mx-auto">
-        {cart.items.length === 0 ? (
+        {items.length === 0 ? (
           <p className="text-center text-lg">Your cart is empty.</p>
         ) : (
           <div className="bg-white shadow-md rounded-lg p-6">
-            {cart.items.map(item => (
+            {items.map(item => (
               <div key={item.variant_id} className="flex items-center justify-between border-b border-gray-200 py-4 last:border-b-0">
                 <div className="flex items-center space-x-4">
-                  <img src={item.image_url} alt={item.name} className="w-24 h-24 object-cover rounded-md" />
+                  <img src={item.image_url || '/imgs/csoonpng.png'} alt={item.name} className="w-24 h-24 object-cover rounded-md" />
                   <div>
                     <h3 className="font-bold text-lg">{item.name}</h3>
                     <p className="text-gray-600 text-sm">Size: {item.size} | Color: {item.color}</p>
-                    <p className="text-gray-800 font-semibold mt-1">${item.price.toFixed(2)}</p>
+                    <p className="text-gray-800 font-semibold mt-1">${Number(item.price || 0).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -45,7 +48,7 @@ const Cart = () => {
                     min="1"
                     className="w-20 border border-gray-300 rounded-md text-center py-1"
                   />
-                  <p className="font-semibold text-lg w-20 text-right">${(item.price * item.quantity).toFixed(2)}</p>
+                  <p className="font-semibold text-lg w-20 text-right">${(Number(item.price || 0) * item.quantity).toFixed(2)}</p>
                   <button 
                     onClick={() => handleRemoveItem(item.variant_id)}
                     className="text-red-500 hover:text-red-700 transition-colors duration-200"

@@ -1,5 +1,5 @@
-import create from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import axios from 'axios';
 
 const useStore = create(persist(
@@ -133,8 +133,8 @@ const useStore = create(persist(
     },
   }),
   {
-    name: 'un533n-store', 
-    getStorage: () => localStorage, 
+    name: 'un533n-store',
+    storage: createJSONStorage(() => localStorage),
   }
 ));
 

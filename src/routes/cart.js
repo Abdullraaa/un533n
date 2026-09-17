@@ -40,7 +40,25 @@ router.get('/', authMiddleware.optional, getUserCart, async (req, res) => {
       );
       res.json({ items });
     } else {
-      res.json(req.cart);
+      // Guests only keep {variant_id, quantity} in the session, so hydrate
+      // name/price/size/colour/image from the DB before returning. Without
+      // this the cart and checkout pages render a priceless, nameless row.
+      const ids = (req.cart.items || []).map(i => i.variant_id);
+      if (ids.length === 0) {
+        return res.json({ items: [] });
+      }
+      const [rows] = await pool.query(
+        `SELECT pv.id as variant_id, pv.price, pv.size, pv.color, p.name, pv.image_url
+         FROM product_variants pv
+         JOIN products p ON pv.product_id = p.id
+         WHERE pv.id IN (?)`,
+        [ids]
+      );
+      const byId = new Map(rows.map(r => [r.variant_id, r]));
+      const items = req.cart.items
+        .filter(i => byId.has(i.variant_id))
+        .map(i => ({ ...byId.get(i.variant_id), quantity: i.quantity }));
+      res.json({ items });
     }
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cart items', error: error.message });

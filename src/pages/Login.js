@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useStoreContext } from '../components/StoreProvider';
 
 const Login = () => {
@@ -7,14 +7,18 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useStoreContext();
+
+  // Checkout bounces guests here before the payment step; send them back.
+  const from = location.state?.from || '/profile';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     try {
       await login(email, password);
-      navigate('/profile'); // Redirect to profile or dashboard after successful login
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     }
@@ -36,6 +40,9 @@ const Login = () => {
           </div>
           <button type="submit" className="bg-accent text-primary py-2 px-8 rounded-full font-bold">Login</button>
         </form>
+        <p className="mt-4">
+          No account? <Link to="/signup" className="text-un-gold hover:underline">Sign up</Link>
+        </p>
       </div>
     </div>
   );

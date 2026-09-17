@@ -1,3 +1,25 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Explicit sources: v4 auto-detection would otherwise scan the committed
+   webpack bundle in public/dist/, producing junk utilities and slow builds. */
+@source "../public/**/*.html";
+@source "../src/**/*.js";
+
+@theme {
+  /* Brand palette, as used by the static markup. */
+  --color-un-black: #000000;
+  --color-un-white: #FFFFFF;
+  --color-un-gold:  #FFD700;
+
+  /* The React pages were written against primary/secondary/accent names that
+     were never defined anywhere, so ~38 class usages generated no CSS and
+     those pages rendered uncoloured. Mapped onto the brand palette:
+       primary   = dark text / dark section ground
+       secondary = light card surface
+       accent    = gold call-to-action */
+  --color-primary: #111111;
+  --color-primary-dark: #000000;
+  --color-secondary: #FFFFFF;
+  --color-accent: #FFD700;
+  --color-accent-dark: #E6C200;
+}

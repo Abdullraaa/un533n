@@ -2,12 +2,13 @@
   "name": "clothing-store",
   "version": "1.0.0",
   "description": "A web application for selling clothes online.",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "scripts": {
+    "prestart": "pnpm run build:css && pnpm run build",
     "start": "node src/server.js",
     "build": "webpack --mode production",
     "dev": "webpack --mode development",
-    "build:css": "tailwindcss build src/input.css -o public/output.css"
+    "build:css": "tailwindcss -i src/input.css -o public/output.css"
   },
   "keywords": [
     "clothing",
@@ -36,6 +37,7 @@
     "@babel/core": "^7.0.0",
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
+    "@tailwindcss/cli": "^4.3.3",
     "babel-loader": "^10.0.0",
     "tailwindcss": "^4.1.12",
     "webpack": "^5.24.4",

@@ -1,2 +1,4 @@
 allowBuilds:
   bcrypt: true
+  # watch-mode only; the prebuilt @parcel/watcher-linux-x64-glibc package covers it
+  "@parcel/watcher": false

@@ -12,37 +12,42 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
-    // Fetch all products if not already fetched (or fetch single product if API supports it)
-    if (products.length === 0) {
-      fetchProducts();
-    }
-  }, [products, fetchProducts]);
+    // Fetch once on mount. Depending on `products` here caused an infinite
+    // loop: fetchProducts() writes a fresh array identity, which re-triggers
+    // the effect, which fetches again -- forever on an empty catalogue.
+    fetchProducts();
+  }, [fetchProducts]);
 
   useEffect(() => {
     // Find the product from the store's products array
     const foundProduct = products.find(p => p.id === parseInt(id));
     setProduct(foundProduct);
 
-    // Set initial selected variant if product is found
-    if (foundProduct && foundProduct.variants && foundProduct.variants.length > 0) {
-      setSelectedSize(foundProduct.variants[0].size || '');
-      setSelectedColor(foundProduct.variants[0].color || '');
-      setSelectedVariant(foundProduct.variants[0]);
+    // Set initial selected variant if product is found. A product with no
+    // variants still yields one all-null row, so filter those out first.
+    const real = (foundProduct?.variants || []).filter(v => v && v.variant_id != null);
+    if (real.length > 0) {
+      setSelectedSize(real[0].size || '');
+      setSelectedColor(real[0].color || '');
+      setSelectedVariant(real[0]);
     }
   }, [id, products]);
 
   useEffect(() => {
     if (product && product.variants) {
-      const variant = product.variants.find(v => 
-        (v.size === selectedSize || !selectedSize) && 
+      // Skip the all-null placeholder row a variant-less product produces,
+      // or it matches here and renders as a $0.00 buyable variant.
+      const variant = product.variants.find(v =>
+        v && v.variant_id != null &&
+        (v.size === selectedSize || !selectedSize) &&
         (v.color === selectedColor || !selectedColor)
       );
-      setSelectedVariant(variant);
+      setSelectedVariant(variant || null);
     }
   }, [selectedSize, selectedColor, product]);
 
   const handleAddToCart = () => {
-    if (selectedVariant && quantity > 0) {
+    if (selectedVariant && selectedVariant.variant_id != null && quantity > 0) {
       addToCart(selectedVariant.variant_id, quantity);
       alert(`${quantity} of ${product.name} (${selectedVariant.size}, ${selectedVariant.color}) added to cart!`);
     } else {
@@ -54,18 +59,23 @@ const ProductDetail = () => {
     return <div>Loading product details...</div>;
   }
 
-  const availableSizes = [...new Set(product.variants.map(v => v.size))].filter(Boolean);
-  const availableColors = [...new Set(product.variants.map(v => v.color))].filter(Boolean);
+  const realVariants = (product.variants || []).filter(v => v && v.variant_id != null);
+  const availableSizes = [...new Set(realVariants.map(v => v.size))].filter(Boolean);
+  const availableColors = [...new Set(realVariants.map(v => v.color))].filter(Boolean);
+  const displayVariant = selectedVariant || realVariants[0] || null;
+  const displayPrice = Number(displayVariant?.price);
 
   return (
     <div className="px-8 py-16">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16 max-w-6xl mx-auto">
         <div>
-          <img src={selectedVariant?.image_url || product.variants[0]?.image_url} alt={product.name} className="w-full h-full object-cover" />
+          <img src={displayVariant?.image_url || '/imgs/csoonpng.png'} alt={product.name} className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="text-3xl font-bold">{product.name}</h1>
-          <p className="text-2xl text-gray-400 mt-2">${selectedVariant?.price.toFixed(2) || product.variants[0]?.price.toFixed(2)}</p>
+          <p className="text-2xl text-gray-400 mt-2">
+            {Number.isFinite(displayPrice) ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
+          </p>
           <p className="mt-4">{product.description}</p>
           
           {availableSizes.length > 0 && (
@@ -117,10 +127,14 @@ const ProductDetail = () => {
           <div className="mt-8">
             <button 
               onClick={handleAddToCart}
-              className="w-full bg-accent text-white py-3 px-8 rounded-full font-bold text-lg hover:bg-accent-dark transition-colors duration-300"
+              className="w-full bg-accent text-un-black py-3 px-8 rounded-full font-bold text-lg hover:bg-accent-dark transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!selectedVariant || selectedVariant.stock_quantity === 0}
             >
-              {selectedVariant && selectedVariant.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+              {realVariants.length === 0
+                ? 'Unavailable'
+                : selectedVariant && selectedVariant.stock_quantity === 0
+                  ? 'Out of Stock'
+                  : 'Add to Cart'}
             </button>
           </div>
           {selectedVariant && selectedVariant.stock_quantity > 0 && (

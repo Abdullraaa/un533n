@@ -28,7 +28,17 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/payment', paymentRoutes); // New: Use payment routes
 
-app.get('/', (req, res) => {
+// Unmatched API paths must fail as JSON. Without this the SPA catch-all
+// below would answer them with index.html and a 200, so axios would choke
+// on HTML instead of seeing a clean 404.
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'Not found' });
+});
+
+// SPA catch-all: BrowserRouter paths must survive direct navigation and
+// refresh. Runs after express.static, so real files still win.
+// NOTE: '*' is Express 4 syntax; Express 5 requires '/*splat'.
+app.get('*', (req, res) => {
   res.sendFile('index.html', { root: 'public' });
 });
 

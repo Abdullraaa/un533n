@@ -3,70 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blog | UN533N Clothing</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Blog | UN533N</title>
+    <link rel="stylesheet" href="/output.css">
 </head>
-<body>
-    <header>
-        <nav class="navbar">
-            <div class="logo">UN533N</div>
-            <ul class="nav-links">
-                <li><a href="index.html#home">Home</a></li>
-                <li><a href="index.html#products">Shop</a></li>
-                <li><a href="index.html#about">About</a></li>
-                <li><a href="index.html#contact">Contact</a></li>
-                <li>
-                    <a href="cart.html" class="cart-link">
-                        🛒 Cart
-                        <span class="cart-count">0</span>
-                    </a>
-                </li>
-            </ul>
+<body class="bg-un-black text-un-white">
+    <!-- Static page: no SPA route and no backend route, so it keeps its own
+         copy of the nav. Links point at SPA paths, which the server's
+         catch-all resolves. -->
+    <header class="bg-un-black shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-un-gold">UN533N</a>
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="/shop" class="hover:text-un-gold">Shop</a>
+                <a href="/about" class="hover:text-un-gold">About</a>
+                <a href="/contact" class="hover:text-un-gold">Contact</a>
+                <a href="/blog.html" class="text-un-gold">Blog</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="/cart" class="hover:text-un-gold">Cart</a>
+                <a href="/login" class="hover:text-un-gold">Login</a>
+            </div>
         </nav>
     </header>
-    <main>
-        <section class="blog-list-section">
-            <h2>UN533N Blog</h2>
-            <div class="blog-list">
-                <article class="blog-post image-post">
-                    <img src="imgs/IMG_4417.JPG" alt="Behind the Brand" class="blog-image">
-                    <div class="blog-content">
-                        <h3>Behind the Brand: Our Journey</h3>
-                        <p class="blog-meta">Posted on August 13, 2025 by UN533N Team</p>
-                        <p>
-                            From humble beginnings, UN533N has always believed that fashion is more than just clothing—it's a statement.
-                            Our journey started with a passion for unique design and a commitment to sustainability.
-                        </p>
-                        <a href="#" class="read-more">Read More</a>
-                    </div>
-                </article>
-                <article class="blog-post image-post">
-                    <img src="imgs/IMG_4409.JPG" alt="Sustainable Fashion" class="blog-image">
-                    <div class="blog-content">
-                        <h3>Sustainable Fashion: Why It Matters</h3>
-                        <p class="blog-meta">Posted on July 28, 2025 by UN533N Team</p>
-                        <p>
-                            Discover how UN533N is making a difference with eco-friendly materials and ethical production practices.
-                        </p>
-                        <a href="#" class="read-more">Read More</a>
-                    </div>
-                </article>
-                <article class="blog-post image-post">
-                    <img src="imgs/IMG_4419.JPG" alt="Style Tips" class="blog-image">
-                    <div class="blog-content">
-                        <h3>5 Style Tips for Every Season</h3>
-                        <p class="blog-meta">Posted on July 10, 2025 by UN533N Team</p>
-                        <p>
-                            Stay ahead of the trends with our top style tips, curated for every season and every wardrobe.
-                        </p>
-                        <a href="#" class="read-more">Read More</a>
-                    </div>
-                </article>
-            </div>
-        </section>
+
+    <main class="container mx-auto px-6 py-16">
+        <h1 class="text-4xl font-bold text-center mb-12">UN533N Blog</h1>
+
+        <div class="space-y-12 max-w-4xl mx-auto">
+            <article class="md:flex md:items-center md:space-x-8 border-b border-gray-800 pb-12">
+                <img src="/imgs/IMG_4417.JPG" alt="Behind the Brand" class="w-full md:w-64 h-64 object-cover rounded-lg">
+                <div class="mt-6 md:mt-0">
+                    <h2 class="text-2xl font-bold">Behind the Brand: Our Journey</h2>
+                    <p class="text-sm text-gray-400 mt-1">Posted on August 13, 2025 by UN533N Team</p>
+                    <p class="mt-4">
+                        From humble beginnings, UN533N has always believed that fashion is more than just clothing&mdash;it's a statement.
+                        Our journey started with a passion for unique design and a commitment to sustainability.
+                    </p>
+                    <a href="#" class="mt-4 inline-block text-un-gold font-bold hover:underline">Read More</a>
+                </div>
+            </article>
+
+            <article class="md:flex md:items-center md:space-x-8 border-b border-gray-800 pb-12">
+                <img src="/imgs/IMG_4409.JPG" alt="Sustainable Fashion" class="w-full md:w-64 h-64 object-cover rounded-lg">
+                <div class="mt-6 md:mt-0">
+                    <h2 class="text-2xl font-bold">Sustainable Fashion: Why It Matters</h2>
+                    <p class="text-sm text-gray-400 mt-1">Posted on July 28, 2025 by UN533N Team</p>
+                    <p class="mt-4">
+                        Discover how UN533N is making a difference with eco-friendly materials and ethical production practices.
+                    </p>
+                    <a href="#" class="mt-4 inline-block text-un-gold font-bold hover:underline">Read More</a>
+                </div>
+            </article>
+
+            <article class="md:flex md:items-center md:space-x-8">
+                <img src="/imgs/IMG_4419.JPG" alt="Style Tips" class="w-full md:w-64 h-64 object-cover rounded-lg">
+                <div class="mt-6 md:mt-0">
+                    <h2 class="text-2xl font-bold">5 Style Tips for Every Season</h2>
+                    <p class="text-sm text-gray-400 mt-1">Posted on July 10, 2025 by UN533N Team</p>
+                    <p class="mt-4">
+                        Stay ahead of the trends with our top style tips, curated for every season and every wardrobe.
+                    </p>
+                    <a href="#" class="mt-4 inline-block text-un-gold font-bold hover:underline">Read More</a>
+                </div>
+            </article>
+        </div>
     </main>
-    <footer>
-        <p>&copy; 2025 UN533N. All rights reserved.</p>
+
+    <footer class="bg-un-black py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 UN533N. All rights reserved.</p>
+        </div>
     </footer>
 </body>
 </html>

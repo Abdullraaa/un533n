@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
-import { useStoreContext } from '../store';
+import { useStoreContext } from './StoreProvider';
 
 const PaymentForm = ({ totalAmount, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();

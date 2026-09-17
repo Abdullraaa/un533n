@@ -24,7 +24,18 @@ const Checkout = () => {
     }
   }, [fetchCart, user, token, fetchAddresses]);
 
-  const subtotal = cart.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  // The backend has never supported guest orders (POST /api/orders is
+  // auth.required, and the store's createOrder throws without a token), but
+  // the UI still let a logged-out user reach payment and be charged with no
+  // order recorded. Gate the payment step instead of adding guest orders.
+  useEffect(() => {
+    if (!token && currentStep >= 3) {
+      navigate('/login', { replace: true, state: { from: '/checkout' } });
+    }
+  }, [token, currentStep, navigate]);
+
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  const subtotal = items.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0);
   const shippingCost = 10; // Example static shipping cost
   const totalAmount = subtotal + shippingCost;
 
@@ -64,7 +75,8 @@ const Checkout = () => {
       await createOrder({
         shipping_address_id: selectedShippingAddress,
         billing_address_id: selectedBillingAddress,
-        payment_intent_id: paymentIntent.id, // Pass the payment intent ID to your backend
+        shipping_cost: shippingCost,
+        payment_intent_id: paymentIntent?.id,
       });
       alert('Order placed successfully!');
       navigate('/order-confirmation'); // Redirect to an order confirmation page
@@ -96,14 +108,14 @@ const Checkout = () => {
         {currentStep === 1 && (
           <div>
             <h2 className="text-2xl font-bold mb-4">Cart Review</h2>
-            {cart.items.length === 0 ? (
+            {items.length === 0 ? (
               <p>Your cart is empty. Please add items to proceed to checkout.</p>
             ) : (
               <div>
-                {cart.items.map(item => (
+                {items.map(item => (
                   <div key={item.variant_id} className="flex justify-between items-center border-b py-2">
                     <span>{item.name} ({item.size}, {item.color}) x {item.quantity}</span>
-                    <span>${(item.price * item.quantity).toFixed(2)}</span>
+                    <span>${(Number(item.price || 0) * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="text-right font-bold text-lg mt-4">
@@ -209,10 +221,10 @@ const Checkout = () => {
             <h2 className="text-2xl font-bold mb-4">Order Confirmation</h2>
             <div className="mb-4">
               <h3 className="text-xl font-semibold">Items:</h3>
-              {cart.items.map(item => (
+              {items.map(item => (
                 <div key={item.variant_id} className="flex justify-between items-center py-1">
                   <span>{item.name} ({item.size}, {item.color}) x {item.quantity}</span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                  <span>${(Number(item.price || 0) * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -233,9 +245,12 @@ const Checkout = () => {
               <p>Shipping: ${shippingCost.toFixed(2)}</p>
               <p>Total: ${totalAmount.toFixed(2)}</p>
             </div>
+            {/* No "Place Order" button here: PaymentForm already calls
+                handlePaymentSuccess once the payment succeeds. A second
+                trigger created a duplicate order for a single payment, and
+                passed a click event where a PaymentIntent was expected. */}
             <div className="flex justify-between mt-6">
               <button onClick={handlePrevStep} className="bg-gray-300 text-gray-800 py-2 px-6 rounded-full">Previous</button>
-              <button onClick={handlePaymentSuccess} className="bg-green-500 text-white py-2 px-6 rounded-full" disabled={loading}>Place Order</button>
             </div>
           </div>
         )}

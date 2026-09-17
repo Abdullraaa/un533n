@@ -3,6 +3,11 @@ const router = express.Router();
 const pool = require('../database');
 const auth = require('../middleware/auth');
 
+// Single source of truth for shipping. The checkout page charges
+// subtotal + this via Stripe; the order total must include it or every
+// order is recorded below what the card was actually charged.
+const SHIPPING_COST = 10;
+
 // Create a new order from the user's cart
 router.post('/', auth.required, async (req, res) => {
   const connection = await pool.getConnection();
@@ -11,12 +16,14 @@ router.post('/', auth.required, async (req, res) => {
 
     const { shipping_address_id, billing_address_id } = req.body;
     if (!shipping_address_id || !billing_address_id) {
+      await connection.rollback();
       return res.status(400).json({ message: 'Shipping and billing address IDs are required.' });
     }
 
     // Get the user's cart
     const [cart] = await connection.query('SELECT id FROM carts WHERE user_id = ?', [req.user.id]);
     if (cart.length === 0) {
+      await connection.rollback();
       return res.status(400).json({ message: 'Cart not found for this user.' });
     }
     const cart_id = cart[0].id;
@@ -31,6 +38,7 @@ router.post('/', auth.required, async (req, res) => {
     );
 
     if (cartItems.length === 0) {
+      await connection.rollback();
       return res.status(400).json({ message: 'Cart is empty.' });
     }
 
@@ -43,6 +51,7 @@ router.post('/', auth.required, async (req, res) => {
       }
       totalAmount += item.quantity * item.price;
     }
+    totalAmount += SHIPPING_COST;
 
     // Create the order
     const [orderResult] = await connection.query(

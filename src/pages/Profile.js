@@ -206,7 +206,7 @@ const Profile = () => {
                 <div key={order.id} className="border p-4 rounded-md shadow-sm">
                   <p><strong>Order ID:</strong> {order.id}</p>
                   <p><strong>Date:</strong> {new Date(order.order_date).toLocaleDateString()}</p>
-                  <p><strong>Total:</strong> ${order.total_amount.toFixed(2)}</p>
+                  <p><strong>Total:</strong> ${Number(order.total_amount || 0).toFixed(2)}</p>
                   <p><strong>Status:</strong> {order.status}</p>
                   {/* You might want to fetch order items here or link to a detailed order page */}
                 </div>
@@ -223,11 +223,11 @@ const Profile = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {wishlist.map(item => (
-                <div key={item.variant_id} className="border p-4 rounded-md shadow-sm">
-                  <img src={item.image_url} alt={item.name} className="w-full h-32 object-cover mb-2" />
+                <div key={item.wishlist_id} className="border p-4 rounded-md shadow-sm">
+                  <img src={item.image_url || '/imgs/csoonpng.png'} alt={item.name} className="w-full h-32 object-cover mb-2" />
                   <p className="font-bold">{item.name}</p>
                   <p className="text-sm">Size: {item.size}, Color: {item.color}</p>
-                  <p className="font-semibold">${item.price.toFixed(2)}</p>
+                  <p className="font-semibold">${Number(item.price || 0).toFixed(2)}</p>
                   {/* Add to cart or remove from wishlist buttons */}
                 </div>
               ))}
