@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../database');
+const auth = require('../middleware/auth');
 
 // Get all products with variants, optionally filtered by category
 router.get('/', async (req, res) => {
@@ -73,7 +74,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new product with variants
-router.post('/', async (req, res) => {
+router.post('/', auth.admin, async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -108,7 +109,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update a product and its variants
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth.admin, async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -150,7 +151,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete a product and all its variants
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth.admin, async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();

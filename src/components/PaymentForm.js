@@ -25,9 +25,11 @@ const PaymentForm = ({ totalAmount, onPaymentSuccess, onPaymentError }) => {
 
     try {
       // Create Payment Intent on your backend
+      // No amount is sent: the server prices the intent from the cart it
+      // holds for this user. Anything posted here would be ignored.
       const { data: clientSecretData } = await axios.post(
         '/api/payment/create-payment-intent',
-        { amount: Math.round(totalAmount * 100), currency: 'usd' }, // Amount in cents
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 

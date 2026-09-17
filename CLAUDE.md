@@ -37,18 +37,21 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 | Route | Auth |
 |---|---|
 | `/api/users` — signup, login, profile, addresses CRUD | `auth.required` except signup/login |
-| `/api/products` — list (`?category=`), get, create, update, delete | **none, including writes** |
+| `/api/products` — list (`?category=`), get | none (public reads) |
+| `/api/products` — create, update, delete | `auth.admin` |
 | `/api/cart` — get/add/update/remove, `POST /merge` | `auth.optional` (+ `/merge` required) |
 | `/api/wishlist`, `/api/orders` | `auth.required` |
 | `/api/payment` — `create-payment-intent`, `confirm-payment-intent` | `auth.required` |
 
-`src/middleware/auth.js` exposes `required` and `optional`; both verify a Bearer JWT and reload the user row into `req.user`.
+`src/middleware/auth.js` exposes `required`, `optional`, and `admin`; all verify a Bearer JWT and reload the user row into `req.user`. `admin` is an array (`[required, roleCheck]`) gating endpoints that act on data the caller doesn't own — product writes and `PUT /api/orders/:id/status`. It reads `users.is_admin`, which signup never sets; grant it with a deliberate `UPDATE`.
 
 **Dual cart model** (`src/routes/cart.js`): `getUserCart` routes logged-in users to `carts`/`cart_items` and guests to `req.session.cart`. The session only stores `{variant_id, quantity}` — `GET /` hydrates name/price/image from the DB before returning, so both paths return the same shape. `POST /api/cart/merge` folds the session cart into the DB cart at login.
 
 **Checkout is login-gated.** `POST /api/orders` is `auth.required` and the store's `createOrder` throws without a token, so `Checkout.js` redirects guests to `/login` (with `state.from`) before the payment step rather than letting them pay into nothing.
 
-**Shipping is a server-side constant.** `SHIPPING_COST` in `src/routes/orders.js` must stay in sync with `shippingCost` in `src/pages/Checkout.js`, or the recorded order total won't match the Stripe charge.
+**Pricing is server-side, in `src/pricing.js`.** `SHIPPING_COST`, `CURRENCY`, and `cartTotalForUser()` live there, and both the Stripe charge (`routes/payment.js`) and the recorded order total (`routes/orders.js`) derive from it, so the two cannot drift.
+
+`POST /api/payment/create-payment-intent` **ignores the request body entirely** — amount and currency come from the caller's cart in the database. Do not reintroduce a client-supplied `amount`: that let a client name its own price for any cart. `src/pages/Checkout.js` still computes a display total; that one is cosmetic.
 
 ### Client state
 
@@ -62,7 +65,7 @@ Store actions are stable identities, so `useEffect` deps should list the *action
 
 **`un533n_v2.sql` is the live schema**; `un533n.sql` is the v1 historical one. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
 
-`seed.sql` loads a dev catalogue. Product images are DB values (`product_variants.image_url`) pointing into `public/imgs/` — **static grep cannot see which images are in use**, so never delete from `public/imgs/` based on a code search alone.
+`seed.sql` loads a dev catalogue (and deliberately creates no admin). Product images are DB values (`product_variants.image_url`) pointing into `public/imgs/` — **static grep cannot see which images are in use**, so never delete from `public/imgs/` based on a code search alone.
 
 `GET /api/products` aggregates variants with `LEFT JOIN` + `JSON_ARRAYAGG`, so a product with no variants yields **one all-null row, not an empty array**. Filter on `v.variant_id != null` before reading `.price` — a plain `length > 0` check passes and then throws. `seed.sql` includes one deliberately variant-less product to keep this path exercised.
 

@@ -3,10 +3,9 @@ const router = express.Router();
 const pool = require('../database');
 const auth = require('../middleware/auth');
 
-// Single source of truth for shipping. The checkout page charges
-// subtotal + this via Stripe; the order total must include it or every
-// order is recorded below what the card was actually charged.
-const SHIPPING_COST = 10;
+// Shared with routes/payment.js so the recorded order total and the
+// amount actually charged cannot drift apart.
+const { SHIPPING_COST } = require('../pricing');
 
 // Create a new order from the user's cart
 router.post('/', auth.required, async (req, res) => {
@@ -138,9 +137,8 @@ router.get('/:id', auth.required, async (req, res) => {
   }
 });
 
-// Update order status (Admin only - a proper role check should be implemented)
-router.put('/:id/status', auth.required, async (req, res) => {
-    // TODO: Add a check to ensure only admins can update order status
+// Update order status (admin only)
+router.put('/:id/status', auth.admin, async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;

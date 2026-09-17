@@ -14,7 +14,7 @@ const authMiddleware = {
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      const [rows] = await pool.query('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [decoded.userId]);
+      const [rows] = await pool.query('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?', [decoded.userId]);
       if (rows.length === 0) {
         return res.status(401).json({ message: 'Invalid authentication token.' });
       }
@@ -34,7 +34,7 @@ const authMiddleware = {
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      const [rows] = await pool.query('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [decoded.userId]);
+      const [rows] = await pool.query('SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = ?', [decoded.userId]);
       if (rows.length > 0) {
         req.user = rows[0];
       }
@@ -44,5 +44,17 @@ const authMiddleware = {
     next();
   }
 };
+
+// Guards endpoints that act on data the caller does not own: product
+// writes and order-status changes. Chain after `required`.
+authMiddleware.admin = [
+  authMiddleware.required,
+  (req, res, next) => {
+    if (!req.user?.is_admin) {
+      return res.status(403).json({ message: 'Administrator access required.' });
+    }
+    next();
+  }
+];
 
 module.exports = authMiddleware;

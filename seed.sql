@@ -44,3 +44,9 @@ INSERT INTO product_variants (product_id, sku, size, color, price, stock_quantit
 
   (5, 'UN-BEAN-BLK-OS', 'OS', 'Black',  38.00, 25, '/imgs/IMG_4434.JPG'),
   (5, 'UN-BEAN-GLD-OS', 'OS', 'Gold',   38.00, 11, '/imgs/IMG_9696.PNG');
+
+-- Admin access is deliberately NOT granted here: product writes and order
+-- status changes require users.is_admin, and a seed file should never mint
+-- an admin. Grant it by hand for a local account:
+--
+--   UPDATE users SET is_admin = TRUE WHERE email = 'you@example.com';
