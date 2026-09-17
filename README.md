@@ -31,12 +31,12 @@ To get started with the project, follow these steps:
 
 2. **Install dependencies**:
    ```
-   npm install
+   pnpm install
    ```
 
 3. **Run the application**:
    ```
-   npm start
+   pnpm start
    ```
 
 ## Features
