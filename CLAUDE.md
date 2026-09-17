@@ -5,24 +5,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm start            # Express API + static server on PORT (default 3002)
-npm run dev          # webpack --mode development -> public/dist/bundle.js
-npm run build        # webpack --mode production
-npm run build:css    # Tailwind: src/input.css -> public/output.css
+pnpm install         # pnpm is pinned via corepack (packageManager field) — do not use npm
+pnpm start           # prestart builds CSS + bundle, then serves on PORT (default 3002)
+pnpm run dev         # webpack --mode development -> public/dist/bundle.js
+pnpm run build       # webpack --mode production
+pnpm run build:css   # Tailwind v4 CLI: src/input.css -> public/output.css
 ```
 
-There is no test runner, linter, or type checker configured. Formatting follows `.prettierrc` (2 spaces, no tabs).
+There is no test runner, linter, or type checker. Formatting follows `.prettierrc` (2 spaces, no tabs).
 
-`public/output.css` is **not** in the repo — `npm run build:css` must be run before the static pages render correctly, since every `public/*.html` links to it.
+`prestart` builds both the stylesheet and the bundle, so `pnpm start` is self-sufficient — this exists specifically to prevent deploying a site with no CSS. `public/output.css` and `public/dist/` are gitignored build output.
+
+Native dependency build scripts are opt-in under pnpm: `pnpm-workspace.yaml` has `allowBuilds: bcrypt: true`. Without it `bcrypt` installs but has no binary and `require('bcrypt')` fails at runtime.
 
 ## Architecture
 
-The repo is a MySQL-backed Express API (`src/server.js`) plus **two parallel, currently disconnected frontends**:
+Express API + SPA served from one origin (`src/server.js`, port 3002). Because the API and the app share an origin, the client's relative `/api/...` axios paths need no CORS or proxy.
 
-1. **Static HTML site** (`public/*.html`) — Tailwind-classed pages (`index`, `shop`, `cart`, `checkout`, `product-detail`, `payment`, `about`, `contact`, `blog`). This is what actually gets served: `express.static('public')` plus `GET /` → `public/index.html`. These pages are hand-written and do not load `dist/bundle.js`.
-2. **React SPA** (`src/app.js`, `src/pages/`, `src/components/`) — react-router-dom v7 routes mirroring the same pages, bundled by webpack to `public/dist/bundle.js`. No HTML file mounts `#root` or loads the bundle, so the SPA is built but unreachable. Wiring a page to the SPA means adding the `<div id="root">` + `<script src="dist/bundle.js">` to an HTML entry.
+**Request order in `src/server.js` matters**: `express.json()` → `express.static('public')` → session → `/api/*` routers → a JSON 404 guard for unmatched `/api` paths → the SPA catch-all. The guard is load-bearing: without it the catch-all answers unmatched API paths with `index.html` and a 200, so axios gets HTML instead of a clean 404. The catch-all uses Express 4's `'*'` syntax — Express 5 would need `'/*splat'`.
 
-### API layer (`src/routes/`, mounted under `/api` in `src/server.js`)
+### Frontend
+
+A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is just the shell (`#root` + the bundle). **Asset paths in the shell and in page markup must be absolute** (`/output.css`, `/dist/bundle.js`, `/imgs/...`) — the catch-all serves that shell at deep routes like `/product/5`, where relative paths resolve against the route.
+
+`public/blog.html` is the one remaining static page: no SPA route, no backend route. It carries its own copy of the nav markup, pointing at SPA paths.
+
+`src/components/Nav.js` and `Footer.js` wrap `<Routes>` in `App.js`. Nav reads `user`/`cart` from the store, so it reflects auth state and cart count.
+
+### API layer (`src/routes/`, mounted under `/api`)
 
 | Route | Auth |
 |---|---|
@@ -32,39 +42,40 @@ The repo is a MySQL-backed Express API (`src/server.js`) plus **two parallel, cu
 | `/api/wishlist`, `/api/orders` | `auth.required` |
 | `/api/payment` — `create-payment-intent`, `confirm-payment-intent` | `auth.required` |
 
-`src/middleware/auth.js` exposes `required` and `optional`. Both verify a `Bearer` JWT (`JWT_SECRET`) and re-load the user row into `req.user`; `optional` silently falls through to guest on a missing or bad token.
+`src/middleware/auth.js` exposes `required` and `optional`; both verify a Bearer JWT and reload the user row into `req.user`.
 
-**Dual cart model** is the key server-side pattern (`src/routes/cart.js`): the `getUserCart` middleware routes logged-in users to the `carts`/`cart_items` tables and guests to `req.session.cart` (express-session, in-memory store). `POST /api/cart/merge` folds the session cart into the DB cart at login, and the client store calls it from `login()`.
+**Dual cart model** (`src/routes/cart.js`): `getUserCart` routes logged-in users to `carts`/`cart_items` and guests to `req.session.cart`. The session only stores `{variant_id, quantity}` — `GET /` hydrates name/price/image from the DB before returning, so both paths return the same shape. `POST /api/cart/merge` folds the session cart into the DB cart at login.
+
+**Checkout is login-gated.** `POST /api/orders` is `auth.required` and the store's `createOrder` throws without a token, so `Checkout.js` redirects guests to `/login` (with `state.from`) before the payment step rather than letting them pay into nothing.
+
+**Shipping is a server-side constant.** `SHIPPING_COST` in `src/routes/orders.js` must stay in sync with `shippingCost` in `src/pages/Checkout.js`, or the recorded order total won't match the Stripe charge.
 
 ### Client state
 
-`src/store/index.js` is a single Zustand store (persisted to `localStorage` under `un533n-store`) holding cart, user, token, addresses, orders, wishlist and products, with axios actions that attach `Authorization: Bearer ${token}` when a token exists. `src/components/StoreProvider.js` re-exposes that store through React context; pages consume `useStoreContext()`, **not** `useStore` directly.
+`src/store/index.js` is one Zustand v5 store (persisted to `localStorage` as `un533n-store`) holding cart, user, token, addresses, orders, wishlist, products. `src/components/StoreProvider.js` re-exposes it via context — **pages consume `useStoreContext()`, never `useStore` directly**. Note zustand v5 requires the named `create` import and `createJSONStorage`; the v4 default export and `getStorage` are gone.
 
-`src/utils/api.js` is an older parallel `fetch` client keyed on `productId` rather than `variant_id`, used only by `src/pages/Home.js`. Prefer the Zustand store for new work.
+Store actions are stable identities, so `useEffect` deps should list the *action*, not the state it writes — depending on `products` while calling `fetchProducts()` causes an infinite refetch.
 
 ### Database
 
-`src/database.js` exports a promise-wrapped `mysql2` pool. Connection details are **hardcoded placeholders** (`your_database_host`, etc.) and not read from env — this must be pointed at a real database (ideally via `dotenv`) before anything involving the DB runs.
+`src/database.js` is a promise-wrapped `mysql2` pool, env-configured, with **`decimalNumbers: true`** — without it `DECIMAL(10,2)` comes back as a string and every `price.toFixed(2)` throws.
 
-Two schema files exist. **`un533n_v2.sql` is the live schema** — it introduces `product_variants` (SKU/size/color/price/stock), server-side `carts`/`cart_items`, `addresses`, and order `status`. All route code joins on `variant_id`, so `un533n.sql` (v1, price on `products`, `product_id` in order items) is historical only.
+**`un533n_v2.sql` is the live schema**; `un533n.sql` is the v1 historical one. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
+
+`seed.sql` loads a dev catalogue. Product images are DB values (`product_variants.image_url`) pointing into `public/imgs/` — **static grep cannot see which images are in use**, so never delete from `public/imgs/` based on a code search alone.
+
+`GET /api/products` aggregates variants with `LEFT JOIN` + `JSON_ARRAYAGG`, so a product with no variants yields **one all-null row, not an empty array**. Filter on `v.variant_id != null` before reading `.price` — a plain `length > 0` check passes and then throws. `seed.sql` includes one deliberately variant-less product to keep this path exercised.
 
 ## Environment
 
-`.env` is loaded by `dotenv` in `src/server.js` but not committed. Expected: `PORT`, `NODE_ENV`, `SESSION_SECRET`, `JWT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`. Several fall back to insecure literal defaults in code (`'your_super_secret_jwt_key_that_should_be_in_env'` in both `middleware/auth.js` and `routes/users.js`) — those fallbacks are development scaffolding, not values to rely on.
+Copy `.env.example` to `.env` (gitignored): `PORT`, `NODE_ENV`, `SESSION_SECRET`, `JWT_SECRET`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`.
 
-Note `STRIPE_PUBLISHABLE_KEY` is read via `process.env` in `src/app.js` (client bundle); webpack has no `DefinePlugin`, so it resolves to the placeholder in the browser today.
+`STRIPE_PUBLISHABLE_KEY` is the only client-side env read. Webpack 5 has no `process` shim, so it is injected by `DefinePlugin` in `webpack.config.js` (which loads dotenv itself) — **the bundle must be rebuilt after changing it**. When it is unset, `App.js` passes `null` to `<Elements>` so the app degrades instead of throwing, and the Pay button stays disabled.
 
-## Known broken state
-
-Worth knowing before debugging — these are pre-existing, not regressions:
-
-- **`src/routes/users.js` is two copies of the file concatenated** (`const express` declared twice at top level). It throws `SyntaxError` on `require`, so `npm start` fails outright. The second copy is the newer, complete one.
-- **`src/index.js` imports `./App`** but the file is `src/app.js` — case-sensitive on Linux, so the webpack build fails there too.
-- `src/components/PaymentForm.js` imports `useStoreContext` from `'../store'`, which only exports the raw `useStore` hook.
-- `node_modules/` is committed to git (`.gitignore` was added later but the tree was never untracked), and `package-lock 2.json` is a stray duplicate lockfile.
+`JWT_SECRET`/`SESSION_SECRET` have insecure literal fallbacks in `middleware/auth.js` and `routes/users.js` — development scaffolding, not values to rely on.
 
 ## Conventions
 
-- CommonJS (`require`) on the server, ES modules (`import`) in `src/` client code; webpack + babel (`preset-env`, `preset-react`) handle the latter.
-- Tailwind theme extends three brand colors: `un-black` (#000000), `un-white` (#FFFFFF), `un-gold` (#FFD700). `tailwind.config.js` scans `src/**` and `public/**`. Note `public/styles.css` is a separate legacy stylesheet with its own CSS-variable palette (`--cta: #9A8174`) — not currently linked from the pages.
-- Route handlers follow a uniform shape: `try`/`catch` with `res.status(5xx).json({ message, error: error.message })`; all SQL uses parameterized `pool.query(sql, params)`.
+- CommonJS (`require`) on the server, ES modules in client `src/`; babel with `@babel/preset-env` and `preset-react` (`runtime: 'automatic'`, so JSX files need no `React` import).
+- Tailwind v4 is CSS-configured — there is **no `tailwind.config.js`**. The theme lives in the `@theme` block in `src/input.css`, and `@source` lines are explicit so auto-detection doesn't scan the built bundle. Brand colors `un-black`/`un-white`/`un-gold`; the React pages additionally use `primary`/`secondary`/`accent` (with `-dark` variants), all defined in that same block.
+- Route handlers follow a uniform shape: `try`/`catch` returning `{ message, error: error.message }`; all SQL is parameterized.
