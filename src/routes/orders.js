@@ -72,6 +72,21 @@ router.post('/', auth.required, async (req, res) => {
     return res.status(403).json({ message: 'This payment belongs to another account.' });
   }
 
+  // Has this payment already bought something? This MUST be answered before
+  // any refund path below, not at the INSERT where the UNIQUE index catches
+  // it. Otherwise a customer could place a valid order, change their cart so
+  // the amount no longer matches, resubmit the same intent, and be refunded
+  // by the mismatch branch -- keeping the goods and the money.
+  const [alreadyUsed] = await pool.query(
+    'SELECT id FROM orders WHERE payment_intent_id = ?', [payment_intent_id]
+  );
+  if (alreadyUsed.length > 0) {
+    return res.status(409).json({
+      message: 'This payment has already been used for an order.',
+      orderId: alreadyUsed[0].id
+    });
+  }
+
   // --- From here on we hold a connection and an open transaction. Only work
   // that must be consistent with the rows we are about to write belongs here.
   // Acquiring the connection can itself fail (pool exhausted, DB down), and
@@ -164,8 +179,11 @@ router.post('/', auth.required, async (req, res) => {
       );
     } catch (err) {
       if (err.code === 'ER_DUP_ENTRY') {
-        // The UNIQUE index makes one payment -> one order structural,
-        // rather than something the UI has to be careful about.
+        // Backstop for the narrow race where two requests carrying the same
+        // intent get past the pre-check above concurrently. The UNIQUE index
+        // makes one payment -> one order structural rather than something the
+        // UI has to be careful about. No refund here: the money is correctly
+        // tied to the order named below.
         await connection.rollback();
         // rollback ends the transaction but leaves this connection usable,
         // so reuse it rather than acquiring a second one from the pool.

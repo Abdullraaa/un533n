@@ -1,5 +1,6 @@
 {
   "name": "un533n",
+  "private": true,
   "version": "1.0.0",
   "description": "E-commerce site for the UN533N clothing brand.",
   "main": "src/server.js",
