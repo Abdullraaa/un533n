@@ -16,7 +16,7 @@ There is no test runner, linter, or type checker. Formatting follows `.prettierr
 
 `prestart` builds both the stylesheet and the bundle, so `pnpm start` is self-sufficient — this exists specifically to prevent deploying a site with no CSS. `public/output.css` and `public/dist/` are gitignored build output.
 
-Native dependency build scripts are opt-in under pnpm. `pnpm-workspace.yaml` exists solely for this — it has no `packages:` key and is not a real workspace — and sets `bcrypt: true` (without it bcrypt installs with no binary and `require('bcrypt')` fails at runtime) and `"@parcel/watcher": false` (Tailwind watch-mode only; its prebuilt platform package covers it).
+Native dependency build scripts are opt-in under pnpm. `pnpm-workspace.yaml` exists solely for this — it has no `packages:` key and is not a real workspace — and sets `bcrypt: true` and `"@parcel/watcher": false` (Tailwind watch-mode only; its prebuilt platform package covers it). Since bcrypt 6 the `bcrypt: true` entry only suppresses pnpm's ignored-build warning: v6 ships prebuilt binaries in the tarball and loads them via `node-gyp-build`, so `require('bcrypt')` works even if the build script is skipped. Under bcrypt 5 it was load-bearing, because node-pre-gyp fetched the binary at install time.
 
 ## Architecture
 
