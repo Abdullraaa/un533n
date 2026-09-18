@@ -8,6 +8,34 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // amount actually charged cannot drift apart.
 const { SHIPPING_COST, CURRENCY, toMinorUnits } = require('../pricing');
 
+// Once PaymentForm has captured the card, any rejection that produces no
+// order leaves the customer's money stranded. This refunds first, then
+// answers, so the rule is simple and auditable: if we took money and did not
+// produce an order, we give it back.
+//
+// The idempotency key matters -- a retried failure would otherwise hit
+// charge_already_refunded, which would escape into the generic catch and turn
+// a precise 409 into a confusing 500.
+async function refundAndRespond(res, { paymentIntentId, status, message, extra = {} }) {
+  try {
+    await stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      { idempotencyKey: `refund:${paymentIntentId}` }
+    );
+    return res.status(status).json({ ...extra, message: `${message} Your payment has been refunded.`, refunded: true });
+  } catch (refundError) {
+    // Money is captured and the refund did not go through. This needs a human,
+    // so say so distinctly rather than dressing it up as a normal rejection.
+    console.error('REFUND FAILED for', paymentIntentId, '-', refundError.message);
+    return res.status(502).json({
+      ...extra,
+      message: `${message} We could not automatically refund your payment -- please contact support.`,
+      refunded: false,
+      payment_intent_id: paymentIntentId
+    });
+  }
+}
+
 // Create a new order from the user's cart
 router.post('/', auth.required, async (req, res) => {
   const { shipping_address_id, billing_address_id, payment_intent_id } = req.body;
@@ -46,7 +74,19 @@ router.post('/', auth.required, async (req, res) => {
 
   // --- From here on we hold a connection and an open transaction. Only work
   // that must be consistent with the rows we are about to write belongs here.
-  const connection = await pool.getConnection();
+  // Acquiring the connection can itself fail (pool exhausted, DB down), and
+  // by this point the card is already charged -- so it needs the same
+  // refund-and-answer treatment as any other post-capture failure. Left
+  // unguarded it would reject with no response at all and hang the request.
+  let connection;
+  try {
+    connection = await pool.getConnection();
+  } catch (error) {
+    console.error('Could not acquire a connection for order creation:', error.message);
+    return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 503,
+      message: 'We could not reach the database to record your order.' });
+  }
+
   try {
     await connection.beginTransaction();
 
@@ -61,14 +101,16 @@ router.post('/', auth.required, async (req, res) => {
     const distinctRequested = new Set([String(shipping_address_id), String(billing_address_id)]).size;
     if (ownedAddresses.length !== distinctRequested) {
       await connection.rollback();
-      return res.status(404).json({ message: 'Address not found or you do not have permission to use it.' });
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 404,
+        message: 'Address not found or you do not have permission to use it.' });
     }
 
     // Get the user's cart
     const [cart] = await connection.query('SELECT id FROM carts WHERE user_id = ?', [req.user.id]);
     if (cart.length === 0) {
       await connection.rollback();
-      return res.status(400).json({ message: 'Cart not found for this user.' });
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 400,
+        message: 'Cart not found for this user.' });
     }
     const cart_id = cart[0].id;
 
@@ -83,7 +125,8 @@ router.post('/', auth.required, async (req, res) => {
 
     if (cartItems.length === 0) {
       await connection.rollback();
-      return res.status(400).json({ message: 'Cart is empty.' });
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 400,
+        message: 'Cart is empty.' });
     }
 
     // Check stock and calculate total amount
@@ -91,7 +134,8 @@ router.post('/', auth.required, async (req, res) => {
     for (const item of cartItems) {
       if (item.quantity > item.stock_quantity) {
         await connection.rollback();
-        return res.status(400).json({ message: `Not enough stock for variant ${item.variant_id}. Only ${item.stock_quantity} left.` });
+        return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 409,
+          message: `Not enough stock for variant ${item.variant_id}; only ${item.stock_quantity} left.` });
       }
       totalAmount += item.quantity * item.price;
     }
@@ -101,17 +145,14 @@ router.post('/', auth.required, async (req, res) => {
     // totalAmount derives from the in-transaction read above.
     if (intent.currency !== CURRENCY) {
       await connection.rollback();
-      return res.status(409).json({
-        message: `Payment currency ${intent.currency} does not match ${CURRENCY}.`
-      });
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 409,
+        message: `Payment currency ${intent.currency} does not match ${CURRENCY}.` });
     }
     if (intent.amount !== toMinorUnits(totalAmount)) {
       await connection.rollback();
-      return res.status(409).json({
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 409,
         message: 'Payment amount does not match the order total. The cart may have changed after payment.',
-        paid: intent.amount,
-        expected: toMinorUnits(totalAmount)
-      });
+        extra: { paid: intent.amount, expected: toMinorUnits(totalAmount) } });
     }
 
     // Create the order
@@ -156,9 +197,8 @@ router.post('/', auth.required, async (req, res) => {
       );
       if (dec.affectedRows === 0) {
         await connection.rollback();
-        return res.status(409).json({
-          message: `Not enough stock for variant ${item.variant_id}; it sold out while you were checking out.`
-        });
+        return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 409,
+          message: `Variant ${item.variant_id} sold out while you were checking out.` });
       }
     }
 
@@ -185,12 +225,12 @@ router.post('/', auth.required, async (req, res) => {
     // database string.
     const CONTENTION = ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT', 'ER_CHECKREAD'];
     if (CONTENTION.includes(error.code)) {
-      return res.status(409).json({
-        message: 'Another order for one of these items completed first. Please try again.'
-      });
+      return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 409,
+        message: 'Another order for one of these items completed first.' });
     }
 
-    res.status(500).json({ message: 'Error creating order', error: error.message });
+    return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 500,
+      message: 'Something went wrong creating your order.' });
   } finally {
     connection.release();
   }

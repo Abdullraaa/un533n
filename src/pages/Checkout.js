@@ -15,6 +15,10 @@ const Checkout = () => {
   });
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [error, setError] = useState(null);
+  // Kept so a retry after a failed order attempt reuses the payment already
+  // made instead of charging the card a second time -- the server is
+  // idempotent by intent id, but only if the client sends the same one.
+  const [paidIntentId, setPaidIntentId] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -76,13 +80,16 @@ const Checkout = () => {
         setError('Please select both shipping and billing addresses.');
         return;
       }
+      const intentId = paymentIntent?.id || paidIntentId;
+      setPaidIntentId(intentId);
       await createOrder({
         shipping_address_id: selectedShippingAddress,
         billing_address_id: selectedBillingAddress,
         // The server derives shipping and the total itself; it only needs
         // the intent, which it verifies against the order before recording.
-        payment_intent_id: paymentIntent?.id,
+        payment_intent_id: intentId,
       });
+      setPaidIntentId(null);
       alert('Order placed successfully!');
       navigate('/order-confirmation'); // Redirect to an order confirmation page
     } catch (err) {
