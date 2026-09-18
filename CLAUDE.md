@@ -12,7 +12,9 @@ pnpm run build       # webpack --mode production
 pnpm run build:css   # Tailwind v4 CLI: src/input.css -> public/output.css
 ```
 
-There is no test runner, linter, or type checker. Formatting follows `.prettierrc` (2 spaces, no tabs).
+There is no test runner, linter, or type checker. Formatting follows `.prettierrc` (2 spaces, no tabs). The package is `"private": true` — it is an application, never a registry artifact.
+
+`pnpm audit --prod` is currently clean; keep it that way. **axios is deliberately on the 0.x line** (`^0.34.0`, dist-tag `v0x`), which is maintained and advisory-free — not stale. Moving to 1.x is a defensible upgrade but a separate, deliberate one: it adds ~8 transitive dependencies for browser-only usage and ships untranspiled modern syntax into the bundle, since babel-loader excludes `node_modules`. If you do go, land on **≥1.20** — 1.12 carries 28 advisories.
 
 `prestart` builds both the stylesheet and the bundle, so `pnpm start` is self-sufficient — this exists specifically to prevent deploying a site with no CSS. `public/output.css` and `public/dist/` are gitignored build output.
 
@@ -31,6 +33,8 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 `public/blog.html` is the one remaining static page: no SPA route, no backend route. It carries its own copy of the nav markup, pointing at SPA paths.
 
 `src/components/Nav.js` and `Footer.js` wrap `<Routes>` in `App.js`. Nav reads `user`/`cart` from the store, so it reflects auth state and cart count. Below `md` the link row collapses into a toggle-driven panel — `/about`, `/contact` and `/blog.html` have no other link anywhere in the app, so that panel is the only way to reach them on a phone. `blog.html` carries a hand-written copy of the same menu; change both together.
+
+`Checkout.js` gates its own step tabs: steps 3 and 4 are locked until their prerequisites exist, and `PaymentForm` is not rendered at all until both addresses are chosen. It passes those ids down so `PaymentForm` can send them with the intent request, and it keeps the returned PaymentIntent id in state after a failed order attempt so a retry reuses the payment instead of charging again. This is the visible half only — the server enforces all of it independently.
 
 ### API layer (`src/routes/`, mounted under `/api`)
 
@@ -51,13 +55,30 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 
 **Checkout is login-gated.** `POST /api/orders` is `auth.required` and the store's `createOrder` throws without a token, so `Checkout.js` redirects guests to `/login` (with `state.from`) before the payment step rather than letting them pay into nothing.
 
-**Pricing is server-side, in `src/pricing.js`** — `SHIPPING_COST`, `CURRENCY`, `cartTotalForUser()` and `toMinorUnits()`. The Stripe charge (`routes/payment.js`) calls `cartTotalForUser`; `routes/orders.js` imports `SHIPPING_COST` but recomputes the item subtotal itself inside its transaction, so **the shipping figure is shared but the subtotal math is duplicated** — keep them in step.
+**Pricing is server-side, in `src/pricing.js`** — `SHIPPING_COST`, `CURRENCY`, `cartTotalForUser()` and `toMinorUnits()`. `cartTotalForUser` returns `{itemCount, subtotal, shipping, total, outOfStock}`; `outOfStock` lists any line whose quantity exceeds `stock_quantity`. The Stripe charge (`routes/payment.js`) calls it; `routes/orders.js` imports `SHIPPING_COST` but recomputes the item subtotal itself inside its transaction, so **the shipping figure is shared but the subtotal math is duplicated** — keep them in step.
 
 `GET /api/cart` returns `{items, subtotal, shipping, total}` from the same module, which is where `Cart.js` and `Checkout.js` get their display figures. Don't reintroduce a client-side shipping literal: the page would then be able to show a number the server disagrees with.
 
-`POST /api/payment/create-payment-intent` **ignores the request body entirely** — amount and currency come from the caller's cart in the database. Do not reintroduce a client-supplied `amount`: that let a client name its own price for any cart.
+`POST /api/payment/create-payment-intent` **never reads a price from the request.** Amount and currency come from the caller's cart in the database — do not reintroduce a client-supplied `amount`, which let a client name its own price for any cart. The body carries only `shipping_address_id` and `billing_address_id`.
 
-**Orders are tied to a payment.** `POST /api/orders` requires a `payment_intent_id` and, before writing anything, retrieves it from Stripe and checks four things: it succeeded; its `metadata.user_id` is the caller (payment.js stamps this, and it stops one user redeeming another's payment); its currency matches; and its amount equals the total recomputed from the very rows about to be committed, so a cart edited after payment is rejected rather than silently mispriced. `orders.payment_intent_id` is `UNIQUE`, which makes one-payment-one-order structural rather than something the UI has to be careful about — a replayed intent gets a 409 naming the existing order.
+Everything that can make an order impossible is checked **before** `stripe.paymentIntents.create`, so the card is not charged for a cart that cannot be fulfilled: both address ids must be present and belong to the caller (404 otherwise), and `outOfStock` must be empty (409 otherwise). These conditions used to be caught only inside the order transaction — i.e. after capture, with no way back. If you add a new reason an order can fail, ask whether it can be checked here instead.
+
+**Orders are tied to a payment, and the order of the checks is load-bearing.** `POST /api/orders` requires a `payment_intent_id`. Roughly:
+
+1. Presence checks, then `stripe.paymentIntents.retrieve` — **before any connection is taken**. The intent's status, payer and currency are facts about a finished payment and need no transactional consistency; holding a pooled connection across a Stripe round-trip once starved the pool during checkout and blocked every other request on the site.
+2. Status must be `succeeded`; `metadata.user_id` must be the caller (`payment.js` stamps it, which is what stops one user redeeming another's payment).
+3. **Is the intent already spent?** A `SELECT` against the `UNIQUE` `orders.payment_intent_id`. This must stay *above* every refund path — see below.
+4. Only then a connection and a transaction: address ownership, cart, stock, currency, amount-vs-`totalAmount`, the insert, item rows, stock decrement, cart clear.
+
+What must stay **inside** the transaction is the race-safety boundary: the cart/stock read, the stock check, `totalAmount`, the amount comparison (it derives from that read), and the writes.
+
+**Refund policy** (`refundAndRespond`). Once `PaymentForm` has captured the card, any rejection producing no order strands the customer's money, so those branches refund before answering: address rejected, cart missing or empty, stock shortfall, currency or amount mismatch, lost stock race, lock contention, and the generic catch (including a failed `getConnection`, which sits after capture).
+
+Three branches deliberately do **not** refund: a non-`succeeded` intent (nothing was captured), a wrong payer (that is someone else's real payment), and a duplicate (the money is correctly tied to the order the response names).
+
+**This is why step 3 sits where it does.** Duplicate detection also happens at the insert, via the UNIQUE index — but six refund branches run before that point. With the pre-check removed, a customer could place a valid order, change their cart so the amount no longer matches, resubmit the same intent, and be refunded by the mismatch branch while keeping the goods. Reordering these checks silently reintroduces that.
+
+Refunds are issued after `rollback`, never inside an open transaction, and carry `idempotencyKey: refund:<intent>` — without it a retried failure hits `charge_already_refunded`, which escapes into the generic catch and turns a precise 409 into a 500. A refund that itself fails returns a distinct 502 naming the intent rather than a normal-looking rejection.
 
 ### Client state
 
@@ -69,11 +90,15 @@ Store actions are stable identities, so `useEffect` deps should list the *action
 
 `src/database.js` is a promise-wrapped `mysql2` pool, env-configured, with **`decimalNumbers: true`** — without it `DECIMAL(10,2)` comes back as a string and every `price.toFixed(2)` throws.
 
-**`un533n_v2.sql` is the live schema**; `un533n.sql` is the v1 historical one and has no `is_admin` column, so loading it silently breaks every admin route. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
+**`un533n_v2.sql` is the live schema**, for fresh installs only; `un533n.sql` is the v1 historical one and has neither `is_admin` nor `payment_intent_id`, so loading it breaks every admin route and every checkout. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
+
+**Adding a column means two edits**, not one: the `CREATE TABLE` in `un533n_v2.sql` *and* a numbered file in `migrations/`. Fresh installs read the first; already-provisioned databases only ever see the second. Both existing migrations exist because that rule was broken — the columns were added to the schema file alone and the `ALTER`s were applied to the dev database by hand, leaving no upgrade path at all.
 
 `seed.sql` loads a dev catalogue (and deliberately creates no admin). Product images are DB values (`product_variants.image_url`) pointing into `public/imgs/` — **static grep cannot see which images are in use**, so never delete from `public/imgs/` based on a code search alone.
 
 `GET /api/products` aggregates variants with `LEFT JOIN` + `JSON_ARRAYAGG`, so a product with no variants yields **one all-null row, not an empty array**. Filter on `v.variant_id != null` before reading `.price` — a plain `length > 0` check passes and then throws. `seed.sql` includes one deliberately variant-less product to keep this path exercised.
+
+**Stock is defended twice, and the second one has to be atomic.** `create-payment-intent` rejects an over-stock cart up front, but that read takes no locks, so it cannot settle a race. The decrement in `orders.js` therefore tests and subtracts in one statement — `SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity >= ?`, rolling back on `affectedRows === 0`. A plain decrement is not safe here: `stock_quantity` is a signed `INT`, so two checkouts for the last unit both pass the earlier check and leave it at `-1`. Contention between them surfaces as `ER_CHECKREAD`, `ER_LOCK_DEADLOCK` or `ER_LOCK_WAIT_TIMEOUT`, which are mapped to a 409 rather than a 500 carrying a raw database string.
 
 ## Environment
 
