@@ -16,7 +16,7 @@ There is no test runner, linter, or type checker. Formatting follows `.prettierr
 
 `prestart` builds both the stylesheet and the bundle, so `pnpm start` is self-sufficient — this exists specifically to prevent deploying a site with no CSS. `public/output.css` and `public/dist/` are gitignored build output.
 
-Native dependency build scripts are opt-in under pnpm: `pnpm-workspace.yaml` has `allowBuilds: bcrypt: true`. Without it `bcrypt` installs but has no binary and `require('bcrypt')` fails at runtime.
+Native dependency build scripts are opt-in under pnpm. `pnpm-workspace.yaml` exists solely for this — it has no `packages:` key and is not a real workspace — and sets `bcrypt: true` (without it bcrypt installs with no binary and `require('bcrypt')` fails at runtime) and `"@parcel/watcher": false` (Tailwind watch-mode only; its prebuilt platform package covers it).
 
 ## Architecture
 
@@ -30,7 +30,7 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 
 `public/blog.html` is the one remaining static page: no SPA route, no backend route. It carries its own copy of the nav markup, pointing at SPA paths.
 
-`src/components/Nav.js` and `Footer.js` wrap `<Routes>` in `App.js`. Nav reads `user`/`cart` from the store, so it reflects auth state and cart count.
+`src/components/Nav.js` and `Footer.js` wrap `<Routes>` in `App.js`. Nav reads `user`/`cart` from the store, so it reflects auth state and cart count. Below `md` the link row collapses into a toggle-driven panel — `/about`, `/contact` and `/blog.html` have no other link anywhere in the app, so that panel is the only way to reach them on a phone. `blog.html` carries a hand-written copy of the same menu; change both together.
 
 ### API layer (`src/routes/`, mounted under `/api`)
 
@@ -40,7 +40,9 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 | `/api/products` — list (`?category=`), get | none (public reads) |
 | `/api/products` — create, update, delete | `auth.admin` |
 | `/api/cart` — get/add/update/remove, `POST /merge` | `auth.optional` (+ `/merge` required) |
-| `/api/wishlist`, `/api/orders` | `auth.required` |
+| `/api/wishlist` | `auth.required` |
+| `/api/orders` — create, list, get | `auth.required` |
+| `/api/orders` — `PUT /:id/status` | `auth.admin` |
 | `/api/payment` — `create-payment-intent`, `confirm-payment-intent` | `auth.required` |
 
 `src/middleware/auth.js` exposes `required`, `optional`, and `admin`; all verify a Bearer JWT and reload the user row into `req.user`. `admin` is an array (`[required, roleCheck]`) gating endpoints that act on data the caller doesn't own — product writes and `PUT /api/orders/:id/status`. It reads `users.is_admin`, which signup never sets; grant it with a deliberate `UPDATE`.
@@ -49,9 +51,11 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 
 **Checkout is login-gated.** `POST /api/orders` is `auth.required` and the store's `createOrder` throws without a token, so `Checkout.js` redirects guests to `/login` (with `state.from`) before the payment step rather than letting them pay into nothing.
 
-**Pricing is server-side, in `src/pricing.js`.** `SHIPPING_COST`, `CURRENCY`, and `cartTotalForUser()` live there, and both the Stripe charge (`routes/payment.js`) and the recorded order total (`routes/orders.js`) derive from it, so the two cannot drift.
+**Pricing is server-side, in `src/pricing.js`** — `SHIPPING_COST`, `CURRENCY`, `cartTotalForUser()` and `toMinorUnits()`. The Stripe charge (`routes/payment.js`) calls `cartTotalForUser`; `routes/orders.js` imports `SHIPPING_COST` but recomputes the item subtotal itself inside its transaction, so **the shipping figure is shared but the subtotal math is duplicated** — keep them in step.
 
-`POST /api/payment/create-payment-intent` **ignores the request body entirely** — amount and currency come from the caller's cart in the database. Do not reintroduce a client-supplied `amount`: that let a client name its own price for any cart. `src/pages/Checkout.js` still computes a display total; that one is cosmetic.
+`GET /api/cart` returns `{items, subtotal, shipping, total}` from the same module, which is where `Cart.js` and `Checkout.js` get their display figures. Don't reintroduce a client-side shipping literal: the page would then be able to show a number the server disagrees with.
+
+`POST /api/payment/create-payment-intent` **ignores the request body entirely** — amount and currency come from the caller's cart in the database. Do not reintroduce a client-supplied `amount`: that let a client name its own price for any cart.
 
 ### Client state
 
@@ -63,7 +67,7 @@ Store actions are stable identities, so `useEffect` deps should list the *action
 
 `src/database.js` is a promise-wrapped `mysql2` pool, env-configured, with **`decimalNumbers: true`** — without it `DECIMAL(10,2)` comes back as a string and every `price.toFixed(2)` throws.
 
-**`un533n_v2.sql` is the live schema**; `un533n.sql` is the v1 historical one. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
+**`un533n_v2.sql` is the live schema**; `un533n.sql` is the v1 historical one and has no `is_admin` column, so loading it silently breaks every admin route. Everything joins on `variant_id`: price/size/color/stock/`image_url` live on `product_variants`, not `products`.
 
 `seed.sql` loads a dev catalogue (and deliberately creates no admin). Product images are DB values (`product_variants.image_url`) pointing into `public/imgs/` — **static grep cannot see which images are in use**, so never delete from `public/imgs/` based on a code search alone.
 
@@ -75,10 +79,10 @@ Copy `.env.example` to `.env` (gitignored): `PORT`, `NODE_ENV`, `SESSION_SECRET`
 
 `STRIPE_PUBLISHABLE_KEY` is the only client-side env read. Webpack 5 has no `process` shim, so it is injected by `DefinePlugin` in `webpack.config.js` (which loads dotenv itself) — **the bundle must be rebuilt after changing it**. When it is unset, `App.js` passes `null` to `<Elements>` so the app degrades instead of throwing, and the Pay button stays disabled.
 
-`JWT_SECRET`/`SESSION_SECRET` have insecure literal fallbacks in `middleware/auth.js` and `routes/users.js` — development scaffolding, not values to rely on.
+Insecure literal fallbacks exist for `JWT_SECRET` (`middleware/auth.js:5`, `routes/users.js:9`) and `SESSION_SECRET` (`server.js:18`) — development scaffolding, not values to rely on.
 
 ## Conventions
 
 - CommonJS (`require`) on the server, ES modules in client `src/`; babel with `@babel/preset-env` and `preset-react` (`runtime: 'automatic'`, so JSX files need no `React` import).
-- Tailwind v4 is CSS-configured — there is **no `tailwind.config.js`**. The theme lives in the `@theme` block in `src/input.css`, and `@source` lines are explicit so auto-detection doesn't scan the built bundle. Brand colors `un-black`/`un-white`/`un-gold`; the React pages additionally use `primary`/`secondary`/`accent` (with `-dark` variants), all defined in that same block.
+- Tailwind v4 is CSS-configured — there is **no `tailwind.config.js`**. The theme lives in the `@theme` block in `src/input.css`, and `@source` lines are explicit so auto-detection doesn't scan the built bundle. Eight colors are defined there: `un-black`, `un-white`, `un-gold`, plus `primary`, `primary-dark`, `secondary`, `accent`, `accent-dark` used by the React pages. Note there is no `secondary-dark`. Tailwind v4 also removed `bg-opacity-*` — use the `bg-black/50` slash syntax — and its preflight sets `border: 0 solid`, so a bare `border` class renders 1px of `currentColor`; always pair it with a `border-*` colour.
 - Route handlers follow a uniform shape: `try`/`catch` returning `{ message, error: error.message }`; all SQL is parameterized.
