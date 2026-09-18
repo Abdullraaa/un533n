@@ -50,6 +50,20 @@ router.post('/', auth.required, async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    // Ownership, not just existence. The foreign key to addresses(id) proves
+    // the row exists, not whose it is -- without this a caller could attach a
+    // stranger's address to their order, and GET /api/orders would render it
+    // straight back to them.
+    const [ownedAddresses] = await connection.query(
+      'SELECT id FROM addresses WHERE id IN (?, ?) AND user_id = ?',
+      [shipping_address_id, billing_address_id, req.user.id]
+    );
+    const distinctRequested = new Set([String(shipping_address_id), String(billing_address_id)]).size;
+    if (ownedAddresses.length !== distinctRequested) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Address not found or you do not have permission to use it.' });
+    }
+
     // Get the user's cart
     const [cart] = await connection.query('SELECT id FROM carts WHERE user_id = ?', [req.user.id]);
     if (cart.length === 0) {
@@ -132,10 +146,20 @@ router.post('/', auth.required, async (req, res) => {
         'INSERT INTO order_items (order_id, variant_id, quantity, price) VALUES (?, ?, ?, ?)',
         [orderId, item.variant_id, item.quantity, item.price]
       );
-      await connection.query(
-        'UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id = ?',
-        [item.quantity, item.variant_id]
+      // Guarded: the SELECT above takes no locks and stock_quantity is a
+      // signed INT, so two checkouts for the last unit would both pass the
+      // check and both decrement, leaving -1. Doing the test and the
+      // decrement in one statement makes it atomic.
+      const [dec] = await connection.query(
+        'UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity >= ?',
+        [item.quantity, item.variant_id, item.quantity]
       );
+      if (dec.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: `Not enough stock for variant ${item.variant_id}; it sold out while you were checking out.`
+        });
+      }
     }
 
     // Clear the user's cart
@@ -151,6 +175,21 @@ router.post('/', auth.required, async (req, res) => {
     } catch (rollbackError) {
       console.error('Rollback failed during order creation:', rollbackError.message);
     }
+
+    console.error('Order creation failed:', error.code || '(no code)', error.message);
+
+    // Contention between two checkouts for the same variant surfaces as one
+    // of these, depending on engine and timing. The stock invariant still
+    // holds -- the losing transaction is rolled back -- so this is contention,
+    // not a server fault, and gets a 409 rather than a 500 carrying a raw
+    // database string.
+    const CONTENTION = ['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT', 'ER_CHECKREAD'];
+    if (CONTENTION.includes(error.code)) {
+      return res.status(409).json({
+        message: 'Another order for one of these items completed first. Please try again.'
+      });
+    }
+
     res.status(500).json({ message: 'Error creating order', error: error.message });
   } finally {
     connection.release();

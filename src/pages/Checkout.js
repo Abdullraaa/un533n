@@ -100,11 +100,29 @@ const Checkout = () => {
     <div className="px-8 py-16">
       <h1 className="text-3xl font-bold text-center mb-8">Checkout</h1>
       <div className="max-w-6xl mx-auto bg-white text-primary shadow-md rounded-lg p-4 sm:p-8">
+        {/* Steps 3 and 4 stay locked until their prerequisites exist. These
+            tabs were unconditionally clickable, so a user could land on the
+            payment step with no address selected and pay into nothing. The
+            server enforces this too -- this is only the visible half. */}
         <div className="grid grid-cols-2 gap-2 md:flex md:justify-between mb-8">
-          <button onClick={() => setCurrentStep(1)} className={`px-2 py-2 text-xs md:text-base md:px-4 rounded-md ${currentStep === 1 ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>1. Cart Review</button>
-          <button onClick={() => setCurrentStep(2)} className={`px-2 py-2 text-xs md:text-base md:px-4 rounded-md ${currentStep === 2 ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>2. Shipping</button>
-          <button onClick={() => setCurrentStep(3)} className={`px-2 py-2 text-xs md:text-base md:px-4 rounded-md ${currentStep === 3 ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>3. Payment</button>
-          <button onClick={() => setCurrentStep(4)} className={`px-2 py-2 text-xs md:text-base md:px-4 rounded-md ${currentStep === 4 ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>4. Confirmation</button>
+          {[
+            { n: 1, label: '1. Cart Review', locked: false },
+            { n: 2, label: '2. Shipping', locked: items.length === 0 },
+            { n: 3, label: '3. Payment', locked: !selectedShippingAddress },
+            { n: 4, label: '4. Confirmation', locked: !selectedShippingAddress || !selectedBillingAddress },
+          ].map(({ n, label, locked }) => (
+            <button
+              key={n}
+              onClick={() => !locked && setCurrentStep(n)}
+              disabled={locked}
+              title={locked ? 'Complete the earlier steps first' : undefined}
+              className={`px-2 py-2 text-xs md:text-base md:px-4 rounded-md ${
+                currentStep === n ? 'bg-blue-500 text-white' : 'bg-gray-200'
+              } ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
@@ -208,11 +226,19 @@ const Checkout = () => {
                 ))}
               </div>
             )}
-            <PaymentForm 
-              totalAmount={totalAmount} 
-              onPaymentSuccess={handlePaymentSuccess} 
-              onPaymentError={handlePaymentError} 
-            />
+            {selectedShippingAddress && selectedBillingAddress ? (
+              <PaymentForm
+                totalAmount={totalAmount}
+                shippingAddressId={selectedShippingAddress}
+                billingAddressId={selectedBillingAddress}
+                onPaymentSuccess={handlePaymentSuccess}
+                onPaymentError={handlePaymentError}
+              />
+            ) : (
+              <p className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded">
+                Select your shipping and billing address before paying.
+              </p>
+            )}
             <div className="flex flex-wrap gap-3 justify-between mt-6">
               <button onClick={handlePrevStep} className="bg-gray-300 text-gray-800 py-2 px-6 rounded-full">Previous</button>
               <button onClick={handleNextStep} className="bg-accent text-un-black font-bold py-2 px-6 rounded-full" disabled={!selectedBillingAddress}>Next: Confirmation</button>

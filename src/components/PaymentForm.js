@@ -3,7 +3,7 @@ import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
 import { useStoreContext } from './StoreProvider';
 
-const PaymentForm = ({ totalAmount, onPaymentSuccess, onPaymentError }) => {
+const PaymentForm = ({ totalAmount, shippingAddressId, billingAddressId, onPaymentSuccess, onPaymentError }) => {
   const stripe = useStripe();
   const elements = useElements();
   const { token } = useStoreContext();
@@ -26,10 +26,12 @@ const PaymentForm = ({ totalAmount, onPaymentSuccess, onPaymentError }) => {
     try {
       // Create Payment Intent on your backend
       // No amount is sent: the server prices the intent from the cart it
-      // holds for this user. Anything posted here would be ignored.
+      // holds for this user. Anything posted here would be ignored. The
+      // address ids are sent so the server can reject an unfulfillable
+      // order before the card is charged rather than after.
       const { data: clientSecretData } = await axios.post(
         '/api/payment/create-payment-intent',
-        {},
+        { shipping_address_id: shippingAddressId, billing_address_id: billingAddressId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
