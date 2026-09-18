@@ -10,19 +10,45 @@ const { SHIPPING_COST, CURRENCY, toMinorUnits } = require('../pricing');
 
 // Create a new order from the user's cart
 router.post('/', auth.required, async (req, res) => {
+  const { shipping_address_id, billing_address_id, payment_intent_id } = req.body;
+
+  // --- Everything below needs no database connection, so it runs before we
+  // take one. In particular the Stripe round-trip used to sit inside an open
+  // transaction: on a Stripe slowdown that pinned a pooled connection for the
+  // full 80s timeout, and ten concurrent checkouts starved the pool for every
+  // other request on the site.
+  if (!shipping_address_id || !billing_address_id) {
+    return res.status(400).json({ message: 'Shipping and billing address IDs are required.' });
+  }
+  if (!payment_intent_id) {
+    return res.status(400).json({ message: 'A payment is required before an order can be created.' });
+  }
+
+  // Verify the payment actually covers THIS order before recording it.
+  // Without this the id would be a decorative string: any caller could
+  // post an arbitrary or someone else's intent and get a free order.
+  let intent;
+  try {
+    intent = await stripe.paymentIntents.retrieve(payment_intent_id);
+  } catch (err) {
+    return res.status(402).json({ message: 'Payment could not be verified.', error: err.message });
+  }
+
+  // Nothing was captured, so there is nothing to undo.
+  if (intent.status !== 'succeeded') {
+    return res.status(402).json({ message: `Payment has not completed (status: ${intent.status}).` });
+  }
+  // payment.js stamps the payer on the intent; this stops one user
+  // redeeming another user's successful payment.
+  if (intent.metadata?.user_id !== String(req.user.id)) {
+    return res.status(403).json({ message: 'This payment belongs to another account.' });
+  }
+
+  // --- From here on we hold a connection and an open transaction. Only work
+  // that must be consistent with the rows we are about to write belongs here.
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-
-    const { shipping_address_id, billing_address_id, payment_intent_id } = req.body;
-    if (!shipping_address_id || !billing_address_id) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Shipping and billing address IDs are required.' });
-    }
-    if (!payment_intent_id) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'A payment is required before an order can be created.' });
-    }
 
     // Get the user's cart
     const [cart] = await connection.query('SELECT id FROM carts WHERE user_id = ?', [req.user.id]);
@@ -57,29 +83,8 @@ router.post('/', auth.required, async (req, res) => {
     }
     totalAmount += SHIPPING_COST;
 
-    // Verify the payment actually covers THIS order before recording it.
-    // Without this the id would be a decorative string: any caller could
-    // post an arbitrary or someone else's intent and get a free order.
-    let intent;
-    try {
-      intent = await stripe.paymentIntents.retrieve(payment_intent_id);
-    } catch (err) {
-      await connection.rollback();
-      return res.status(402).json({ message: 'Payment could not be verified.', error: err.message });
-    }
-
-    if (intent.status !== 'succeeded') {
-      await connection.rollback();
-      return res.status(402).json({ message: `Payment has not completed (status: ${intent.status}).` });
-    }
-    // payment.js stamps the payer on the intent; this stops one user
-    // redeeming another user's successful payment.
-    if (intent.metadata?.user_id !== String(req.user.id)) {
-      await connection.rollback();
-      return res.status(403).json({ message: 'This payment belongs to another account.' });
-    }
-    // Recomputed from the rows we are about to commit, so a cart changed
-    // after payment is caught rather than silently under- or over-charged.
+    // Currency and amount are compared here, inside the transaction, because
+    // totalAmount derives from the in-transaction read above.
     if (intent.currency !== CURRENCY) {
       await connection.rollback();
       return res.status(409).json({
@@ -107,7 +112,9 @@ router.post('/', auth.required, async (req, res) => {
         // The UNIQUE index makes one payment -> one order structural,
         // rather than something the UI has to be careful about.
         await connection.rollback();
-        const [[existing]] = await pool.query(
+        // rollback ends the transaction but leaves this connection usable,
+        // so reuse it rather than acquiring a second one from the pool.
+        const [[existing]] = await connection.query(
           'SELECT id FROM orders WHERE payment_intent_id = ?', [payment_intent_id]
         );
         return res.status(409).json({
@@ -137,7 +144,13 @@ router.post('/', auth.required, async (req, res) => {
     await connection.commit();
     res.status(201).json({ message: 'Order created successfully', orderId, payment_intent_id });
   } catch (error) {
-    await connection.rollback();
+    // A throwing rollback must not swallow the response: without this the
+    // request would hang until the client timed out.
+    try {
+      await connection.rollback();
+    } catch (rollbackError) {
+      console.error('Rollback failed during order creation:', rollbackError.message);
+    }
     res.status(500).json({ message: 'Error creating order', error: error.message });
   } finally {
     connection.release();

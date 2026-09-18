@@ -26,6 +26,21 @@ pnpm start                  # builds CSS + bundle, serves on http://localhost:30
 
 > **`seed.sql` is destructive.** It `DELETE`s all products, variants, carts, orders, order items and wishlists before inserting its own catalogue. Development only — never run it against a database with real orders.
 
+### Upgrading an existing database
+
+`un533n_v2.sql` is for fresh installs only. A database provisioned before a
+column was introduced needs the matching migration from `migrations/`, applied
+in filename order:
+
+```bash
+for m in migrations/*.sql; do mysql -u <user> -p <db> < "$m"; done
+```
+
+Each is a plain `ALTER TABLE` and will error harmlessly if already applied.
+`001` adds `users.is_admin` (without it every admin route throws); `002` adds
+`orders.payment_intent_id` (without it checkout fails *after* the card is
+charged).
+
 > **Use `un533n_v2.sql`.** The older `un533n.sql` is kept for reference only and lacks the `is_admin` column, which silently breaks every admin route.
 
 ### Granting admin
