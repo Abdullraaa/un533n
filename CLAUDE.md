@@ -12,7 +12,12 @@ pnpm run build       # webpack --mode production
 pnpm run build:css   # Tailwind v4 CLI: src/input.css -> public/output.css
 ```
 
-There is no test runner, linter, or type checker. Formatting follows `.prettierrc` (2 spaces, no tabs). The package is `"private": true` — it is an application, never a registry artifact.
+```bash
+pnpm run test:setup  # build the integration-test schema (prerequisite, re-runnable)
+pnpm test            # jest --runInBand
+```
+
+There is no linter or type checker. Jest + supertest cover `routes/orders.js` and `routes/payment.js` only — the two files that move money; nothing else has tests, and that is deliberate. Formatting follows `.prettierrc` (2 spaces, no tabs). The package is `"private": true` — it is an application, never a registry artifact.
 
 `pnpm audit --prod` is currently clean; keep it that way. **axios is deliberately on the 0.x line** (`^0.34.0`, dist-tag `v0x`), which is maintained and advisory-free — not stale. Moving to 1.x is a defensible upgrade but a separate, deliberate one: it adds ~8 transitive dependencies for browser-only usage and ships untranspiled modern syntax into the bundle, since babel-loader excludes `node_modules`. If you do go, land on **≥1.20** — 1.12 carries 28 advisories.
 
@@ -24,7 +29,7 @@ Native dependency build scripts are opt-in under pnpm. `pnpm-workspace.yaml` exi
 
 Express API + SPA served from one origin (`src/server.js`, port 3002). Because the API and the app share an origin, the client's relative `/api/...` axios paths need no CORS or proxy.
 
-**Request order in `src/server.js` matters**: `express.json()` → `express.static('public')` → session → `/api/*` routers → a JSON 404 guard for unmatched `/api` paths → the SPA catch-all. The guard is load-bearing: without it the catch-all answers unmatched API paths with `index.html` and a 200, so axios gets HTML instead of a clean 404. The catch-all uses Express 4's `'*'` syntax — Express 5 would need `'/*splat'`.
+**Request order in `src/server.js` matters**: `express.json()` → `express.static('public')` → session → `/api/*` routers → a JSON 404 guard for unmatched `/api` paths → the SPA catch-all. The guard is load-bearing: without it the catch-all answers unmatched API paths with `index.html` and a 200, so axios gets HTML instead of a clean 404. The catch-all uses Express 4's `'*'` syntax — Express 5 would need `'/*splat'`. `server.js` exports `app` and only calls `app.listen` under `require.main === module`, so the tests can mount it without binding a port.
 
 ### Frontend
 
@@ -67,7 +72,7 @@ Everything that can make an order impossible is checked **before** `stripe.payme
 
 1. Presence checks, then `stripe.paymentIntents.retrieve` — **before any connection is taken**. The intent's status, payer and currency are facts about a finished payment and need no transactional consistency; holding a pooled connection across a Stripe round-trip once starved the pool during checkout and blocked every other request on the site.
 2. Status must be `succeeded`; `metadata.user_id` must be the caller (`payment.js` stamps it, which is what stops one user redeeming another's payment).
-3. **Is the intent already spent?** A `SELECT` against the `UNIQUE` `orders.payment_intent_id`. This must stay *above* every refund path — see below.
+3. **Is the intent already spent?** A `SELECT` against the `UNIQUE` `orders.payment_intent_id`, wrapped in `try`/`catch` — unguarded, a rejection here is unhandled in an Express 4 async handler and Node kills the process. It belongs *above* every refund path — see below.
 4. Only then a connection and a transaction: address ownership, cart, stock, currency, amount-vs-`totalAmount`, the insert, item rows, stock decrement, cart clear.
 
 What must stay **inside** the transaction is the race-safety boundary: the cart/stock read, the stock check, `totalAmount`, the amount comparison (it derives from that read), and the writes.
@@ -76,7 +81,11 @@ What must stay **inside** the transaction is the race-safety boundary: the cart/
 
 Three branches deliberately do **not** refund: a non-`succeeded` intent (nothing was captured), a wrong payer (that is someone else's real payment), and a duplicate (the money is correctly tied to the order the response names).
 
-**This is why step 3 sits where it does.** Duplicate detection also happens at the insert, via the UNIQUE index — but six refund branches run before that point. With the pre-check removed, a customer could place a valid order, change their cart so the amount no longer matches, resubmit the same intent, and be refunded by the mismatch branch while keeping the goods. Reordering these checks silently reintroduces that.
+**This is why step 3 sits where it does.** Duplicate detection also happens at the insert, via the UNIQUE index — but six refund branches run before that point. With the pre-check removed, a customer could place a valid order, change their cart so the amount no longer matches, resubmit the same intent, and be refunded by the mismatch branch while keeping the goods.
+
+**Ordering is no longer the only thing standing between you and that bug.** `refundAndRespond` re-checks for a spent intent immediately before issuing any refund, so the rule "never refund a payment that bought something" is structural rather than positional — it holds whichever branch asks, and survives the checks above being reordered. The step-3 pre-check remains because it is cheaper and answers earlier, but the two are defence in depth. Do not remove either on the grounds that the other covers it; `tests/orders.test.js` fails if you remove the re-check, and fails if you reorder the pre-check *and* remove the re-check.
+
+That re-check is also what makes step 3 safe to fail open. When its `SELECT` throws we cannot tell whether the intent is spent, so the request is handed to `refundAndRespond` with a 503 — and the re-check there catches a genuine replay and answers 409 without refunding. **The UNIQUE index is not what saves us in that case:** it prevents a second order, not a wrongful refund against an order that already exists. The re-check's own `try`/`catch` is the last line of defence and deliberately falls through to refunding; reaching it needs a compounding database fault, and stranding the customer's money on every transient one is the worse default.
 
 Refunds are issued after `rollback`, never inside an open transaction, and carry `idempotencyKey: refund:<intent>` — without it a retried failure hits `charge_already_refunded`, which escapes into the generic catch and turns a precise 409 into a 500. A refund that itself fails returns a distinct 502 naming the intent rather than a normal-looking rejection.
 
@@ -107,6 +116,18 @@ Copy `.env.example` to `.env` (gitignored): `PORT`, `NODE_ENV`, `SESSION_SECRET`
 `STRIPE_PUBLISHABLE_KEY` is the only client-side env read. Webpack 5 has no `process` shim, so it is injected by `DefinePlugin` in `webpack.config.js` (which loads dotenv itself) — **the bundle must be rebuilt after changing it**. When it is unset, `App.js` passes `null` to `<Elements>` so the app degrades instead of throwing, and the Pay button stays disabled.
 
 Insecure literal fallbacks exist for `JWT_SECRET` (`middleware/auth.js:5`, `routes/users.js:9`) and `SESSION_SECRET` (`server.js:18`) — development scaffolding, not values to rely on.
+
+## Tests
+
+`tests/` covers `routes/orders.js` (`POST /`) and `routes/payment.js` (`POST /create-payment-intent`) and nothing else. The suite was built from a full enumeration of every response branch in those two handlers rather than from what looked important — the self-refund bug shipped because manual coverage was assembled the other way round and replay of a *successful* payment was never on the list. If you add a branch, add its test.
+
+`pnpm run test:setup` builds the schema; it is a prerequisite, not part of `pnpm test`, and `globalSetup` fails with a pointer to it if the schema is missing. It targets `test_un533n_jest` by default (override with `TEST_DB_NAME`, plus `TEST_DB_HOST`/`TEST_DB_USER`/`TEST_DB_PASSWORD`). The `test_` prefix is load-bearing — MySQL/MariaDB grant the anonymous local account full rights on `test\_%`, which is why no root provisioning is needed. **The dev database is also `test_un533n`**, so both the setup script and `globalSetup` refuse to run against that exact name; `beforeEach` issues `DELETE`s, so the guard is not decorative.
+
+The script rebuilds from scratch every run: apply `un533n_v2.sql`, reverse exactly what `migrations/*.sql` add to reconstruct the pre-migration baseline, then apply the migrations forward with errors fatal. **The reversal is derived by parsing the migration files, never hardcoded** — a hand-written one would drift the moment a migration changed, and the point is that the real migration is what gets rehearsed. A migration statement that is not a recognised `ADD COLUMN` aborts the run rather than being silently half-reversed. Applying v2 and then the migrations directly does *not* work: v2 already contains both columns, so `001` and `002` would fail with `ER_DUP_FIELDNAME`.
+
+`--runInBand` is required — every test shares one schema and parallel workers would stomp each other's `beforeEach`. Stripe is mocked via a shared instance (`tests/helpers/stripe-mock.js`); both route files call `require('stripe')(key)` at module load, so one factory mock controls both. Assertions are on call counts and arguments, not just status codes.
+
+Two tests carry more weight than the rest and should not be weakened: the branch-6 replay (`refuses a replay with a mismatched cart`) is the bug that shipped, and `a failing pre-check on an already-spent intent` is what proves step 3 is safe to fail open. The stock race and the double-submit race each run five times, because one green run does not show a concurrency test is not flaky.
 
 ## Conventions
 

@@ -12,7 +12,9 @@
     "start": "node src/server.js",
     "build": "webpack --mode production",
     "dev": "webpack --mode development",
-    "build:css": "tailwindcss -i src/input.css -o public/output.css"
+    "build:css": "tailwindcss -i src/input.css -o public/output.css",
+    "test": "jest --runInBand",
+    "test:setup": "node tests/setup-test-db.js"
   },
   "keywords": [
     "clothing",
@@ -43,6 +45,8 @@
     "@babel/preset-react": "^7.27.1",
     "@tailwindcss/cli": "^4.3.3",
     "babel-loader": "^10.0.0",
+    "jest": "^30.5.1",
+    "supertest": "^7.2.2",
     "tailwindcss": "^4.1.12",
     "webpack": "^5.24.4",
     "webpack-cli": "^4.5.0"

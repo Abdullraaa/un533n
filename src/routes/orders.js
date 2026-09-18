@@ -17,6 +17,34 @@ const { SHIPPING_COST, CURRENCY, toMinorUnits } = require('../pricing');
 // charge_already_refunded, which would escape into the generic catch and turn
 // a precise 409 into a confusing 500.
 async function refundAndRespond(res, { paymentIntentId, status, message, extra = {} }) {
+  // The spent-intent check in the handler runs before the transaction opens, so
+  // a concurrent request can commit an order for this intent in between -- and
+  // every branch below that point refunds. Re-checking here makes "never refund
+  // a payment that bought something" structural rather than positional: it
+  // holds whichever branch asks for a refund, and survives the checks above
+  // being reordered.
+  try {
+    const [[spent]] = await pool.query(
+      'SELECT id FROM orders WHERE payment_intent_id = ?', [paymentIntentId]
+    );
+    if (spent) {
+      return res.status(409).json({
+        message: 'This payment has already been used for an order.',
+        orderId: spent.id
+      });
+    }
+  } catch (lookupError) {
+    // This is the last line of defence -- there is no further guard to fall
+    // back on without infinite regress. Falling through means that if this
+    // intent HAS already bought an order, that order's payment is about to be
+    // wrongly refunded. Accepted knowingly: reaching here needs a compounding,
+    // persistent database fault (the handler's pre-check failed and so did
+    // this one), and the alternative -- refusing to refund whenever we cannot
+    // check -- strands the customer's money on every such fault. Mitigated,
+    // not resolved; this log line is the trail.
+    console.error('Spent-intent re-check failed for', paymentIntentId, '-', lookupError.message);
+  }
+
   try {
     await stripe.refunds.create(
       { payment_intent: paymentIntentId },
@@ -77,9 +105,27 @@ router.post('/', auth.required, async (req, res) => {
   // it. Otherwise a customer could place a valid order, change their cart so
   // the amount no longer matches, resubmit the same intent, and be refunded
   // by the mismatch branch -- keeping the goods and the money.
-  const [alreadyUsed] = await pool.query(
-    'SELECT id FROM orders WHERE payment_intent_id = ?', [payment_intent_id]
-  );
+  let alreadyUsed;
+  try {
+    [alreadyUsed] = await pool.query(
+      'SELECT id FROM orders WHERE payment_intent_id = ?', [payment_intent_id]
+    );
+  } catch (error) {
+    // Unguarded, this rejection is unhandled in an Express 4 async handler and
+    // Node terminates the process: no response, no refund, and every other
+    // in-flight request on the site dies with it.
+    //
+    // Handing it to refundAndRespond is only safe because of the re-check at
+    // the top of that function. We could not determine whether this intent was
+    // already spent -- if it WAS, that re-check finds the order and answers 409
+    // without refunding, overriding the 503 asked for here. Remove or reorder
+    // that re-check and this branch refunds a legitimate, fulfilled order on
+    // nothing worse than a transient database fault. The UNIQUE index is not
+    // what saves us here: it prevents a second order, not a wrongful refund.
+    console.error('Spent-intent pre-check failed:', error.message);
+    return refundAndRespond(res, { paymentIntentId: payment_intent_id, status: 503,
+      message: 'We could not verify your payment against existing orders.' });
+  }
   if (alreadyUsed.length > 0) {
     return res.status(409).json({
       message: 'This payment has already been used for an order.',
