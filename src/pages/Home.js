@@ -19,11 +19,11 @@ const Home = () => {
       {/* Absolute path: this page also renders under the SPA catch-all, where
           a relative URL would resolve against the current route. */}
       <section className="hero bg-cover bg-center h-screen" style={{ backgroundImage: "url('/imgs/IMG_4420.JPG')" }}>
-        <div className="flex items-center justify-center h-full bg-black bg-opacity-50">
-          <div className="text-center">
-            <h1 className="text-5xl font-bold">Fall/Winter Collection</h1>
+        <div className="flex items-center justify-center h-full bg-black/50">
+          <div className="text-center px-6">
+            <h1 className="text-4xl sm:text-5xl font-bold">Fall/Winter Collection</h1>
             <p className="text-xl mt-4">New arrivals are here</p>
-            <Link to="/shop" className="mt-8 inline-block bg-accent text-primary py-2 px-8 rounded-full font-bold">Shop Now</Link>
+            <Link to="/shop" className="mt-8 inline-block bg-accent text-un-black py-2 px-8 rounded-full font-bold">Shop Now</Link>
           </div>
         </div>
       </section>

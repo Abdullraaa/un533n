@@ -20,7 +20,8 @@ const Cart = () => {
   // `price` is DECIMAL; the pool coerces it, but stay defensive so a bad
   // payload renders as $0.00 rather than throwing mid-render.
   const items = Array.isArray(cart?.items) ? cart.items : [];
-  const subtotal = items.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0);
+  // Server-computed (GET /api/cart); the reduce is a pre-fetch fallback only.
+  const subtotal = Number(cart?.subtotal ?? items.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0));
 
   return (
     <div className="px-8 py-16">
@@ -29,18 +30,18 @@ const Cart = () => {
         {items.length === 0 ? (
           <p className="text-center text-lg">Your cart is empty.</p>
         ) : (
-          <div className="bg-white shadow-md rounded-lg p-6">
+          <div className="bg-white text-primary shadow-md rounded-lg p-6">
             {items.map(item => (
-              <div key={item.variant_id} className="flex items-center justify-between border-b border-gray-200 py-4 last:border-b-0">
-                <div className="flex items-center space-x-4">
-                  <img src={item.image_url || '/imgs/csoonpng.png'} alt={item.name} className="w-24 h-24 object-cover rounded-md" />
+              <div key={item.variant_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 py-4 last:border-b-0">
+                <div className="flex items-center gap-4 min-w-0">
+                  <img src={item.image_url || '/imgs/csoonpng.png'} alt={item.name} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-md shrink-0" />
                   <div>
                     <h3 className="font-bold text-lg">{item.name}</h3>
                     <p className="text-gray-600 text-sm">Size: {item.size} | Color: {item.color}</p>
                     <p className="text-gray-800 font-semibold mt-1">${Number(item.price || 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-4 shrink-0">
                   <input 
                     type="number" 
                     value={item.quantity}
@@ -60,7 +61,7 @@ const Cart = () => {
             ))}
             <div className="mt-6 text-right">
               <p className="text-xl font-bold">Subtotal: <span className="text-accent">${subtotal.toFixed(2)}</span></p>
-              <Link to="/checkout" className="mt-6 inline-block bg-accent text-white py-3 px-8 rounded-full font-bold text-lg hover:bg-accent-dark transition-colors duration-300">
+              <Link to="/checkout" className="mt-6 inline-block bg-accent text-un-black py-3 px-8 rounded-full font-bold text-lg hover:bg-accent-dark transition-colors duration-300">
                 Proceed to Checkout
               </Link>
             </div>

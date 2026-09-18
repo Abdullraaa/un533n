@@ -80,10 +80,10 @@ const ProductDetail = () => {
           
           {availableSizes.length > 0 && (
             <div className="mt-8">
-              <label htmlFor="size" className="block text-lg font-medium text-gray-700">Size</label>
+              <label htmlFor="size" className="block text-lg font-medium text-un-white">Size</label>
               <select 
                 id="size" 
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-secondary text-primary border border-gray-300 focus:outline-none focus:ring-2 focus:ring-un-gold rounded-md"
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value)}
               >
@@ -97,10 +97,10 @@ const ProductDetail = () => {
 
           {availableColors.length > 0 && (
             <div className="mt-4">
-              <label htmlFor="color" className="block text-lg font-medium text-gray-700">Color</label>
+              <label htmlFor="color" className="block text-lg font-medium text-un-white">Color</label>
               <select 
                 id="color" 
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base bg-secondary text-primary border border-gray-300 focus:outline-none focus:ring-2 focus:ring-un-gold rounded-md"
                 value={selectedColor}
                 onChange={(e) => setSelectedColor(e.target.value)}
               >
@@ -113,14 +113,14 @@ const ProductDetail = () => {
           )}
 
           <div className="mt-4">
-            <label htmlFor="quantity" className="block text-lg font-medium text-gray-700">Quantity</label>
+            <label htmlFor="quantity" className="block text-lg font-medium text-un-white">Quantity</label>
             <input 
               type="number" 
               id="quantity" 
               min="1" 
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value))}
-              className="mt-1 block w-24 pl-3 pr-3 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              className="mt-1 block w-24 pl-3 pr-3 py-2 text-base bg-secondary text-primary border border-gray-300 focus:outline-none focus:ring-2 focus:ring-un-gold rounded-md"
             />
           </div>
 
@@ -138,7 +138,7 @@ const ProductDetail = () => {
             </button>
           </div>
           {selectedVariant && selectedVariant.stock_quantity > 0 && (
-            <p className="text-sm text-gray-500 mt-2">In Stock: {selectedVariant.stock_quantity}</p>
+            <p className="text-sm text-gray-300 mt-2">In Stock: {selectedVariant.stock_quantity}</p>
           )}
         </div>
       </div>

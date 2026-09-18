@@ -5,8 +5,8 @@ const OrderConfirmation = () => {
   return (
     <div className="px-8 py-16 text-center">
       <h1 className="text-4xl font-bold text-green-600 mb-4">Order Confirmed!</h1>
-      <p className="text-lg text-gray-700 mb-8">Thank you for your purchase. Your order has been placed successfully.</p>
-      <div className="space-x-4">
+      <p className="text-lg text-un-white mb-8">Thank you for your purchase. Your order has been placed successfully.</p>
+      <div className="flex flex-wrap justify-center gap-4">
         <Link to="/shop" className="bg-blue-500 text-white py-2 px-6 rounded-full hover:bg-blue-600 transition-colors duration-300">
           Continue Shopping
         </Link>

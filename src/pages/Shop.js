@@ -18,8 +18,8 @@ const Shop = () => {
   }, [selectedCategory, fetchProducts]);
 
   return (
-    <div className="flex px-8 py-16">
-      <aside className="w-1/4 pr-8">
+    <div className="flex flex-col md:flex-row px-8 py-16">
+      <aside className="w-full md:w-1/4 md:pr-8 mb-8 md:mb-0">
         <h2 className="text-2xl font-bold mb-4">Categories</h2>
         <ul>
           <li 
@@ -39,7 +39,7 @@ const Shop = () => {
           ))}
         </ul>
       </aside>
-      <main className="w-3/4">
+      <main className="w-full md:w-3/4">
         <h1 className="text-3xl font-bold text-center">Shop</h1>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
           {products.map(product => (

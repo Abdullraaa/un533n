@@ -61,7 +61,7 @@ const PaymentForm = ({ totalAmount, onPaymentSuccess, onPaymentError }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="border p-4 rounded-md">
+      <div className="border border-gray-300 rounded-md p-4 bg-white">
         <CardElement options={{ hidePostalCode: true }} />
       </div>
       {error && <div className="text-red-500 text-sm">{error}</div>}

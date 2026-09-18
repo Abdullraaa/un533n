@@ -1,7 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../database');
-const authMiddleware = require('../middleware/auth'); // Assuming you will create this middleware
+const authMiddleware = require('../middleware/auth');
+const { SHIPPING_COST } = require('../pricing');
+
+// Totals travel with the cart so the UI never has to hardcode shipping.
+const withTotals = (items) => {
+  const subtotal = items.reduce((acc, i) => acc + Number(i.price || 0) * i.quantity, 0);
+  return { items, subtotal, shipping: SHIPPING_COST, total: subtotal + SHIPPING_COST };
+};
 
 // Middleware to get or create a cart for a user
 const getUserCart = async (req, res, next) => {
@@ -38,14 +45,14 @@ router.get('/', authMiddleware.optional, getUserCart, async (req, res) => {
          WHERE ci.cart_id = ?`,
         [req.cart_id]
       );
-      res.json({ items });
+      res.json(withTotals(items));
     } else {
       // Guests only keep {variant_id, quantity} in the session, so hydrate
       // name/price/size/colour/image from the DB before returning. Without
       // this the cart and checkout pages render a priceless, nameless row.
       const ids = (req.cart.items || []).map(i => i.variant_id);
       if (ids.length === 0) {
-        return res.json({ items: [] });
+        return res.json(withTotals([]));
       }
       const [rows] = await pool.query(
         `SELECT pv.id as variant_id, pv.price, pv.size, pv.color, p.name, pv.image_url
@@ -58,7 +65,7 @@ router.get('/', authMiddleware.optional, getUserCart, async (req, res) => {
       const items = req.cart.items
         .filter(i => byId.has(i.variant_id))
         .map(i => ({ ...byId.get(i.variant_id), quantity: i.quantity }));
-      res.json({ items });
+      res.json(withTotals(items));
     }
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cart items', error: error.message });

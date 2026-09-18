@@ -11,19 +11,33 @@
          copy of the nav. Links point at SPA paths, which the server's
          catch-all resolves. -->
     <header class="bg-un-black shadow-md">
-        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold text-un-gold">UN533N</a>
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center gap-4">
+            <a href="/" class="text-2xl font-bold text-un-gold shrink-0">UN533N</a>
             <div class="hidden md:flex items-center space-x-6">
                 <a href="/shop" class="hover:text-un-gold">Shop</a>
                 <a href="/about" class="hover:text-un-gold">About</a>
                 <a href="/contact" class="hover:text-un-gold">Contact</a>
                 <a href="/blog.html" class="text-un-gold">Blog</a>
             </div>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center gap-4 shrink-0">
                 <a href="/cart" class="hover:text-un-gold">Cart</a>
-                <a href="/login" class="hover:text-un-gold">Login</a>
+                <a href="/login" class="hidden md:inline hover:text-un-gold">Login</a>
+                <!-- Mirrors the SPA's mobile menu; without it Shop/About/Contact
+                     are unreachable from this page on a phone. -->
+                <button type="button" id="menu-toggle" aria-label="Menu" aria-expanded="false"
+                        class="md:hidden text-2xl leading-none px-1 hover:text-un-gold">&#9776;</button>
             </div>
         </nav>
+        <div id="mobile-menu" class="hidden md:hidden border-t border-gray-800">
+            <div class="container mx-auto px-6 py-4 flex flex-col space-y-3">
+                <a href="/shop" class="hover:text-un-gold">Shop</a>
+                <a href="/about" class="hover:text-un-gold">About</a>
+                <a href="/contact" class="hover:text-un-gold">Contact</a>
+                <a href="/blog.html" class="text-un-gold">Blog</a>
+                <hr class="border-gray-800">
+                <a href="/login" class="hover:text-un-gold">Login</a>
+            </div>
+        </div>
     </header>
 
     <main class="container mx-auto px-6 py-16">
@@ -74,5 +88,16 @@
             <p>&copy; 2025 UN533N. All rights reserved.</p>
         </div>
     </footer>
+    <script>
+      (function () {
+        var btn = document.getElementById('menu-toggle');
+        var menu = document.getElementById('mobile-menu');
+        btn.addEventListener('click', function () {
+          var open = menu.classList.toggle('hidden') === false;
+          btn.setAttribute('aria-expanded', String(open));
+          btn.innerHTML = open ? '&#10005;' : '&#9776;';
+        });
+      })();
+    </script>
 </body>
 </html>
