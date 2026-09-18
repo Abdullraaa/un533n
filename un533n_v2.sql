@@ -65,6 +65,10 @@ CREATE TABLE orders (
   status ENUM('pending', 'processing', 'shipped', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
   shipping_address_id INT,
   billing_address_id INT,
+  -- The Stripe PaymentIntent this order was paid with. UNIQUE so one
+  -- payment can never produce two orders; nullable because MySQL allows
+  -- multiple NULLs in a unique index, which keeps pre-existing rows valid.
+  payment_intent_id VARCHAR(255) UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),

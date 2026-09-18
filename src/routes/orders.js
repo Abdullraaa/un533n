@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database');
 const auth = require('../middleware/auth');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Shared with routes/payment.js so the recorded order total and the
 // amount actually charged cannot drift apart.
-const { SHIPPING_COST } = require('../pricing');
+const { SHIPPING_COST, CURRENCY, toMinorUnits } = require('../pricing');
 
 // Create a new order from the user's cart
 router.post('/', auth.required, async (req, res) => {
@@ -13,10 +14,14 @@ router.post('/', auth.required, async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { shipping_address_id, billing_address_id } = req.body;
+    const { shipping_address_id, billing_address_id, payment_intent_id } = req.body;
     if (!shipping_address_id || !billing_address_id) {
       await connection.rollback();
       return res.status(400).json({ message: 'Shipping and billing address IDs are required.' });
+    }
+    if (!payment_intent_id) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'A payment is required before an order can be created.' });
     }
 
     // Get the user's cart
@@ -52,11 +57,66 @@ router.post('/', auth.required, async (req, res) => {
     }
     totalAmount += SHIPPING_COST;
 
+    // Verify the payment actually covers THIS order before recording it.
+    // Without this the id would be a decorative string: any caller could
+    // post an arbitrary or someone else's intent and get a free order.
+    let intent;
+    try {
+      intent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    } catch (err) {
+      await connection.rollback();
+      return res.status(402).json({ message: 'Payment could not be verified.', error: err.message });
+    }
+
+    if (intent.status !== 'succeeded') {
+      await connection.rollback();
+      return res.status(402).json({ message: `Payment has not completed (status: ${intent.status}).` });
+    }
+    // payment.js stamps the payer on the intent; this stops one user
+    // redeeming another user's successful payment.
+    if (intent.metadata?.user_id !== String(req.user.id)) {
+      await connection.rollback();
+      return res.status(403).json({ message: 'This payment belongs to another account.' });
+    }
+    // Recomputed from the rows we are about to commit, so a cart changed
+    // after payment is caught rather than silently under- or over-charged.
+    if (intent.currency !== CURRENCY) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Payment currency ${intent.currency} does not match ${CURRENCY}.`
+      });
+    }
+    if (intent.amount !== toMinorUnits(totalAmount)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Payment amount does not match the order total. The cart may have changed after payment.',
+        paid: intent.amount,
+        expected: toMinorUnits(totalAmount)
+      });
+    }
+
     // Create the order
-    const [orderResult] = await connection.query(
-      'INSERT INTO orders (user_id, total_amount, shipping_address_id, billing_address_id) VALUES (?, ?, ?, ?)',
-      [req.user.id, totalAmount, shipping_address_id, billing_address_id]
-    );
+    let orderResult;
+    try {
+      [orderResult] = await connection.query(
+        'INSERT INTO orders (user_id, total_amount, shipping_address_id, billing_address_id, payment_intent_id) VALUES (?, ?, ?, ?, ?)',
+        [req.user.id, totalAmount, shipping_address_id, billing_address_id, payment_intent_id]
+      );
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        // The UNIQUE index makes one payment -> one order structural,
+        // rather than something the UI has to be careful about.
+        await connection.rollback();
+        const [[existing]] = await pool.query(
+          'SELECT id FROM orders WHERE payment_intent_id = ?', [payment_intent_id]
+        );
+        return res.status(409).json({
+          message: 'This payment has already been used for an order.',
+          orderId: existing ? existing.id : undefined
+        });
+      }
+      throw err;
+    }
     const orderId = orderResult.insertId;
 
     // Create order items and update stock
@@ -75,7 +135,7 @@ router.post('/', auth.required, async (req, res) => {
     await connection.query('DELETE FROM cart_items WHERE cart_id = ?', [cart_id]);
 
     await connection.commit();
-    res.status(201).json({ message: 'Order created successfully', orderId });
+    res.status(201).json({ message: 'Order created successfully', orderId, payment_intent_id });
   } catch (error) {
     await connection.rollback();
     res.status(500).json({ message: 'Error creating order', error: error.message });

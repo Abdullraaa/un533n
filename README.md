@@ -75,6 +75,8 @@ Stripe runs in test mode. Set `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` i
 
 **The charge amount is computed server-side.** `POST /api/payment/create-payment-intent` ignores the request body entirely and prices the intent from the caller's cart in the database, so a client cannot influence what it is charged. Checkout is also login-gated: guests are redirected to `/login` before the payment step, because the backend has never supported guest orders.
 
+**Every order is tied to a payment.** `POST /api/orders` requires a `payment_intent_id`, verifies with Stripe that it succeeded, belongs to the caller, and matches the order's currency and total, and stores it on the order. The column is `UNIQUE`, so a single payment can never produce two orders.
+
 ## License
 
 MIT

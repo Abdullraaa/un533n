@@ -57,6 +57,8 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 
 `POST /api/payment/create-payment-intent` **ignores the request body entirely** — amount and currency come from the caller's cart in the database. Do not reintroduce a client-supplied `amount`: that let a client name its own price for any cart.
 
+**Orders are tied to a payment.** `POST /api/orders` requires a `payment_intent_id` and, before writing anything, retrieves it from Stripe and checks four things: it succeeded; its `metadata.user_id` is the caller (payment.js stamps this, and it stops one user redeeming another's payment); its currency matches; and its amount equals the total recomputed from the very rows about to be committed, so a cart edited after payment is rejected rather than silently mispriced. `orders.payment_intent_id` is `UNIQUE`, which makes one-payment-one-order structural rather than something the UI has to be careful about — a replayed intent gets a 409 naming the existing order.
+
 ### Client state
 
 `src/store/index.js` is one Zustand v5 store (persisted to `localStorage` as `un533n-store`) holding cart, user, token, addresses, orders, wishlist, products. `src/components/StoreProvider.js` re-exposes it via context — **pages consume `useStoreContext()`, never `useStore` directly**. Note zustand v5 requires the named `create` import and `createJSONStorage`; the v4 default export and `getStorage` are gone.

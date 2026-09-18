@@ -79,7 +79,8 @@ const Checkout = () => {
       await createOrder({
         shipping_address_id: selectedShippingAddress,
         billing_address_id: selectedBillingAddress,
-        shipping_cost: shippingCost,
+        // The server derives shipping and the total itself; it only needs
+        // the intent, which it verifies against the order before recording.
         payment_intent_id: paymentIntent?.id,
       });
       alert('Order placed successfully!');
