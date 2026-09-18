@@ -64,16 +64,4 @@ router.post('/create-payment-intent', auth.required, async (req, res) => {
   }
 });
 
-// Endpoint to confirm a Payment Intent (optional, can be done on frontend)
-router.post('/confirm-payment-intent', auth.required, async (req, res) => {
-  const { paymentIntentId } = req.body;
-
-  try {
-    const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId);
-    res.status(200).json(paymentIntent);
-  } catch (error) {
-    res.status(500).json({ message: 'Error confirming payment intent', error: error.message });
-  }
-});
-
 module.exports = router;

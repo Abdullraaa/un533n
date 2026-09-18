@@ -43,7 +43,7 @@ A single React 19 SPA (`src/index.js` → `src/App.js`). `public/index.html` is 
 | `/api/wishlist` | `auth.required` |
 | `/api/orders` — create, list, get | `auth.required` |
 | `/api/orders` — `PUT /:id/status` | `auth.admin` |
-| `/api/payment` — `create-payment-intent`, `confirm-payment-intent` | `auth.required` |
+| `/api/payment` — `create-payment-intent` | `auth.required` |
 
 `src/middleware/auth.js` exposes `required`, `optional`, and `admin`; all verify a Bearer JWT and reload the user row into `req.user`. `admin` is an array (`[required, roleCheck]`) gating endpoints that act on data the caller doesn't own — product writes and `PUT /api/orders/:id/status`. It reads `users.is_admin`, which signup never sets; grant it with a deliberate `UPDATE`.
 
